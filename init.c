@@ -26,8 +26,21 @@ struct chunk initChunk()
 
 void genTerrain(struct chunk *chunk)
 {
-    Texture2D noise = LoadTextureFromImage(GenImagePerlinNoise(32, 32, 0, 0, 1.0));
+    Image noise = GenImagePerlinNoise(32, 32, 0, 0, 0.5);
+    Color noiseSample;
+    for(int x = 0; x < 32; x++){
+        for(int y = 0; y < 32; y++){
+            for(int z = 0; z < 32; z++){
+
+            noiseSample = GetImageColor(noise, x,y);
+
+            if(z < (noiseSample.r/16))
+                chunk->ptr[x][y][z] = 1;
+            }
+        }
+    }
 }
+
 void init()
 {
     InitWindow(480,270, "window");
