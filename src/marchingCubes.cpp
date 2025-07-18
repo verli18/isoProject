@@ -18,14 +18,14 @@ Mesh MarchingCubes::generateMeshFromGrid(VoxelGrid& grid) {
         for(unsigned int y = 0; y < grid.getHeight()-1; y++) {
             for(unsigned int z = 0; z < grid.getDepth()-1; z++) {
                 int cubeIndex = 0;
-                if(grid.getVoxel(x, y, z)) cubeIndex |= 1;
-                if(grid.getVoxel(x+1, y, z)) cubeIndex |= 2;
-                if(grid.getVoxel(x+1, y, z+1)) cubeIndex |= 4;
-                if(grid.getVoxel(x, y, z+1)) cubeIndex |= 8;
-                if(grid.getVoxel(x, y+1, z)) cubeIndex |= 16;
-                if(grid.getVoxel(x+1, y+1, z)) cubeIndex |= 32;
-                if(grid.getVoxel(x+1, y+1, z+1)) cubeIndex |= 64;
-                if(grid.getVoxel(x, y+1, z+1)) cubeIndex |= 128;
+                if(grid.getVoxel(x, y, z).type != 0) cubeIndex |= 1;
+                if(grid.getVoxel(x+1, y, z).type != 0) cubeIndex |= 2;
+                if(grid.getVoxel(x+1, y, z+1).type != 0) cubeIndex |= 4;
+                if(grid.getVoxel(x, y, z+1).type != 0) cubeIndex |= 8;
+                if(grid.getVoxel(x, y+1, z).type != 0) cubeIndex |= 16;
+                if(grid.getVoxel(x+1, y+1, z).type != 0) cubeIndex |= 32;
+                if(grid.getVoxel(x+1, y+1, z+1).type != 0) cubeIndex |= 64;
+                if(grid.getVoxel(x, y+1, z+1).type != 0) cubeIndex |= 128;
 
                 if(cubeIndex == 0 || cubeIndex == 255) continue;
 
