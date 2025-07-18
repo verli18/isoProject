@@ -24,8 +24,26 @@ void VoxelGrid::generatePerlinTerrain(float scale, int offsetX, int offsetY) {
     for (int x = 0; x < width; x++) {
         for (int z = 0; z < height; z++) {
             sample = GetImageColor(perlinNoise, x, z);
-            for (int y = 0; y < std::min((int)(sample.r*scale), depth); y++) {
-                setVoxel(x, y, z, Voxels{1, {255, 255, 255, 255}, true, false});
+            int colHeight = std::min((int)(sample.r * scale), depth);
+            if (colHeight <= 0) continue;
+            // Threshold to distinguish high/low columns
+            int snowLine = (int)(depth * 0.75f);
+            for (int y = 0; y < colHeight; y++) {
+                if (y == colHeight - 1) {
+                    // Top block
+                    if (colHeight > snowLine) {
+                        setVoxel(x, y, z, Voxels{3, {230, 230, 255, 255}, true, false}); // Snow
+                    } else {
+                        setVoxel(x, y, z, Voxels{2, {80, 200, 80, 255}, true, false}); // Grass
+                    }
+                } else {
+                    // Below top
+                    if (colHeight > snowLine) {
+                        setVoxel(x, y, z, Voxels{4, {120, 120, 120, 255}, true, false}); // Stone
+                    } else {
+                        setVoxel(x, y, z, Voxels{1, {139, 69, 19, 255}, true, false}); // Dirt
+                    }
+                }
             }
         }
     }
@@ -94,7 +112,7 @@ void VoxelGrid::render() {
         for (int z = 0; z < height; z++) {
             for (int y = 0; y < depth; y++) {
                 if (getVoxel(x, y, z).type != 0) {
-                    DrawPoint3D({(float)x, (float)y, (float)z}, {128, 128, static_cast<unsigned char>(y*255/depth), 255});
+                    DrawPoint3D({(float)x, (float)y, (float)z}, getVoxel(x, y, z).lighting);
                 }
             }
         }

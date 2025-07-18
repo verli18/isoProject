@@ -93,6 +93,8 @@ Mesh MarchingCubes::generateMeshFromGrid(VoxelGrid& grid) {
         mesh.indices[i] = indices[i];
     }
 
+    
+
     // Calculate min/max Y for height-based coloring
     float minY = vertices[0].y;
     float maxY = vertices[0].y;

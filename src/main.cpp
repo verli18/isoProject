@@ -1,27 +1,38 @@
 #include "../include/marchingCubes.hpp"
 #include <raylib.h>
 #include <iostream>
+/**
+ * @brief Main entry point of the application.
+ *
+ * This function initializes the Raylib window, generates a voxel grid with Perlin noise,
+ * renders the voxel grid as a 3D mesh and displays it in the window.
+ *
+ * The user can move the camera with the mouse and keyboard, and remove voxels by
+ * clicking on them. The rendered mesh is updated in real-time when voxels are removed.
+ *
+ * The voxel grid can be toggled on and off by pressing the 'G' key.
+ */
 int main() {
     InitWindow(320 * 4, 240 * 4, "Isometric Game");
     RenderTexture2D texture = LoadRenderTexture(320, 240);
 
     DisableCursor();
     VoxelGrid voxelGrid(16, 16, 16);
-    voxelGrid.generatePerlinTerrain(0.05f, 16, 16);
+    voxelGrid.generatePerlinTerrain(0.07f, 16, 16);
 
     MarchingCubes marchingCubes;
     Mesh mesh = marchingCubes.generateMeshFromGrid(voxelGrid);
     UploadMesh(&mesh, true);
     Model model = LoadModelFromMesh(mesh);
 
-    Camera3D camera = { {64.0f, 64.0f, 0.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 1.0f, 0.0f}, 60.0f, CAMERA_PERSPECTIVE };
+    Camera3D camera = { {16.0f, 16.0f, 16.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 1.0f, 0.0f}, 60.0f, CAMERA_PERSPECTIVE };
 
     SetTargetFPS(60);
     bool showGrid = true;
 
 
     while (!WindowShouldClose()) {
-        UpdateCamera(&camera, CAMERA_FREE);
+        UpdateCamera(&camera, CAMERA_ORTHOGRAPHIC);
 
         if (IsMouseButtonDown(MOUSE_LEFT_BUTTON)) {
             std::cout << "Mouse clicked" << std::endl;
