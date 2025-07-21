@@ -1,4 +1,5 @@
 #include "../include/marchingCubes.hpp"
+#include "../include/textureAtlas.hpp"
 #include <iostream>
 #include <map>
 #include <raymath.h>
@@ -28,7 +29,6 @@ Mesh MarchingCubes::generateMeshFromGrid(VoxelGrid& grid) {
                 if(grid.getVoxel(x, y+1, z+1).type != 0) cubeIndex |= 128;
 
                 if(cubeIndex == 0 || cubeIndex == 255) continue;
-
                 const int* triangleEdges = triangleTable[cubeIndex];
 
                 for (int i = 0; triangleEdges[i] != -1; i += 3) {
@@ -68,7 +68,7 @@ Mesh MarchingCubes::generateMeshFromGrid(VoxelGrid& grid) {
         (int)vertices.size(),
         (int)indices.size() / 3,
         (float*)MemAlloc(mesh.vertexCount * 3 * sizeof(float)),
-        nullptr,
+        (float*)MemAlloc(mesh.vertexCount * 3 * sizeof(float)),
         nullptr,
         (float*)MemAlloc(mesh.vertexCount * 3 * sizeof(float)),
         nullptr,

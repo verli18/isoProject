@@ -63,7 +63,10 @@ int main() {
             BeginMode3D(camera);
             if (IsKeyPressed(KEY_G)) showGrid = !showGrid;
             if(!showGrid) DrawModel(model, {0,0,-0}, 1.0f, WHITE);
-            if (showGrid) voxelGrid.render();
+            if (showGrid) {
+                DrawModelWires(model, {0,0,0}, 1.0f, WHITE);
+                voxelGrid.render();
+            }
             EndMode3D();
             DrawPixelV({160, 120}, WHITE);
             EndTextureMode();
