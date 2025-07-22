@@ -8,8 +8,8 @@
       "args": [],
       "stopAtEntry": false,
       "externalConsole": false,
-      "cwd": "/home/chroma/Documents/programming/isometric",
-      "program": "/home/chroma/Documents/programming/isometric/isometric",
+      "cwd": "/home/olivia/Documents/programming/isometric",
+      "program": "/home/olivia/Documents/programming/isometric/build/IsometricGame",
       "MIMode": "gdb",
       "miDebuggerPath": "gdb",
       "setupCommands": [

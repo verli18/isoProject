@@ -23,13 +23,15 @@ include_directories(${RAYLIB_INCLUDE_DIRS})
 set(SOURCES
     src/main.cpp
     src/3DVoxelGrid.cpp
+    src/marchingCubes.cpp
+    src/chunk.cpp
 )
 
 # Add include directories
 include_directories(${CMAKE_SOURCE_DIR}/include)
 
 # Create executable
-add_executable(IsometricGame src/main.cpp src/3DVoxelGrid.cpp src/marchingCubes.cpp)
+add_executable(IsometricGame ${SOURCES})
 
 # Link libraries
 target_link_libraries(${PROJECT_NAME} PRIVATE ${RAYLIB_LIBRARIES})
@@ -79,5 +81,5 @@ endif()
 if(MSVC)
     target_compile_options(${PROJECT_NAME} PRIVATE /W4 /WX)
 else()
-    target_compile_options(${PROJECT_NAME} PRIVATE -Wall -Wextra -Wpedantic -Werror)
+    target_compile_options(${PROJECT_NAME} PRIVATE -g -Wall -Wextra -Wpedantic -Werror)
 endif()

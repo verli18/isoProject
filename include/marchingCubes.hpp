@@ -3,6 +3,9 @@
 class MarchingCubes
 {
     public:
+        MarchingCubes();
+        ~MarchingCubes();
+
     
         /// edgeToVertices[i] = {a, b} => edge i joins vertices a and b
         std::vector<std::pair<int, int>> edgeToVertices = 

@@ -6,6 +6,9 @@
 #include <vector>
 #include <cmath>
 
+MarchingCubes::MarchingCubes() {}
+MarchingCubes::~MarchingCubes() {}
+
 int MarchingCubes::determineSurfaceTexture(VoxelGrid& grid, int x, int y, int z) {
     // Sample in a 3x3x3 neighborhood around the triangle
     std::map<int, int> materialCount;
@@ -100,6 +103,7 @@ Mesh MarchingCubes::generateMeshFromGrid(VoxelGrid& grid) {
                         Vector3Subtract(tri_vertices[2], tri_vertices[0])
                     ));
                     
+                    //do not ask me to explain this stuff, I followed a guide for it
                     textureAtlas texInfo = textures[determineSurfaceTexture(grid, x, y, z)];
                     float u_start = texInfo.uOffset / atlasWidth;
                     float v_start = texInfo.vOffset / atlasHeight;
@@ -112,7 +116,6 @@ Mesh MarchingCubes::generateMeshFromGrid(VoxelGrid& grid) {
                         Vector3 cube_origin = {(float)x, (float)y, (float)z};
                         Vector3 local_p = Vector3Subtract(p, cube_origin);
 
-                        // Triplanar blending weights
                         float wx = fabs(normal.x);
                         float wy = fabs(normal.y);
                         float wz = fabs(normal.z);
@@ -130,12 +133,10 @@ Mesh MarchingCubes::generateMeshFromGrid(VoxelGrid& grid) {
                             uvX.y * wx + uvY.y * wy + uvZ.y * wz
                         };
 
-                        // Apply atlas offsets and scale
                         tri_uvs[j].x = u_start + uv.x * u_scale;
                         tri_uvs[j].y = v_start + uv.y * v_scale;
                     }
 
-                    // --- Add triangle to mesh data ---
                     for(int j=0; j<3; j++) {
                         mesh_vertices.push_back(tri_vertices[j]);
                         mesh_texcoords.push_back(tri_uvs[j]);

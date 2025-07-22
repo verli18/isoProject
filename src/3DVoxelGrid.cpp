@@ -27,7 +27,7 @@ void VoxelGrid::generatePerlinTerrain(float scale, int offsetX, int offsetY) {
             int colHeight = std::min((int)(sample.r * scale), depth);
             if (colHeight <= 0) continue;
 
-            int snowLine = (int)(depth * 0.60f);
+            int snowLine = (int)(depth * 0.50f);
             for (int y = 0; y < colHeight; y++) {
                 if (y == colHeight - 1) {
                     // Top block
