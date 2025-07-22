@@ -3,17 +3,51 @@
 #include <iostream>
 #include <map>
 #include <raymath.h>
+#include <vector>
+#include <cmath>
+
+int MarchingCubes::determineSurfaceTexture(VoxelGrid& grid, int x, int y, int z) {
+    // Sample in a 3x3x3 neighborhood around the triangle
+    std::map<int, int> materialCount;
+    
+    for(int corner = 0; corner < 8; corner++) {
+        int vx = x + (corner & 1);
+        int vy = y + ((corner >> 2) & 1);
+        int vz = z + ((corner >> 1) & 1);
+        
+        if(vx < (int)grid.getWidth() && vy < (int)grid.getHeight() && vz < (int)grid.getDepth()) {
+            int type = grid.getVoxel(vx, vy, vz).type;
+            if(type != AIR) {
+                materialCount[type] += 1;
+            }
+        }
+    }
+    // Find the dominant material
+    int dominantType = STONE;
+    int maxCount = 0;
+    for(const auto& [type, count] : materialCount) {
+        if(count > maxCount) {
+            maxCount = count;
+            dominantType = type;
+        }
+    }
+       
+    return dominantType;
+}
 
 Mesh MarchingCubes::generateMeshFromGrid(VoxelGrid& grid) {
 
-    std::vector<Vector3> vertices;
-    std::vector<unsigned short> indices;
-    std::map<long long, int> vertexMap;
+    std::vector<Vector3> mesh_vertices;
+    std::vector<Vector2> mesh_texcoords;
+    std::vector<Vector3> mesh_normals;
 
     Vector3 cornerOffsets[] = {
         {0, 0, 0}, {1, 0, 0}, {1, 0, 1}, {0, 0, 1},
         {0, 1, 0}, {1, 1, 0}, {1, 1, 1}, {0, 1, 1}
     };
+
+    const float atlasWidth = 64.0f; // 5 textures * 16px width
+    const float atlasHeight = 16.0f; // 16px height
 
     for(unsigned int x = 0; x < grid.getWidth()-1; x++) {
         for(unsigned int y = 0; y < grid.getHeight()-1; y++) {
@@ -29,9 +63,14 @@ Mesh MarchingCubes::generateMeshFromGrid(VoxelGrid& grid) {
                 if(grid.getVoxel(x, y+1, z+1).type != 0) cubeIndex |= 128;
 
                 if(cubeIndex == 0 || cubeIndex == 255) continue;
+            
+
                 const int* triangleEdges = triangleTable[cubeIndex];
 
                 for (int i = 0; triangleEdges[i] != -1; i += 3) {
+                    Vector3 tri_vertices[3];
+                    std::map<int, int> type_counts;
+
                     for (int j = 0; j < 3; j++) {
                         int edgeIndex = triangleEdges[i + j];
                         
@@ -45,35 +84,81 @@ Mesh MarchingCubes::generateMeshFromGrid(VoxelGrid& grid) {
                                     (float)y + cornerOffsets[cornerIndices.second].y, 
                                     (float)z + cornerOffsets[cornerIndices.second].z };
 
-                        Vector3 midpoint = { (p1.x + p2.x) * 0.5f, 
+                        tri_vertices[j] = { (p1.x + p2.x) * 0.5f, 
                                             (p1.y + p2.y) * 0.5f, 
                                             (p1.z + p2.z) * 0.5f };
 
-                        long long key = ((long long)x << 32) | (y << 16) | z | ((long long)edgeIndex << 48);
+                    }
+                    //Vector3 triangleCenter = {
+                    //    (tri_vertices[0].x + tri_vertices[1].x + tri_vertices[2].x) / 3.0f,
+                    //    (tri_vertices[0].y + tri_vertices[1].y + tri_vertices[2].y) / 3.0f,
+                    //    (tri_vertices[0].z + tri_vertices[1].z + tri_vertices[2].z) / 3.0f
+                    //};
 
-                        if (vertexMap.find(key) != vertexMap.end()) {
-                            indices.push_back(vertexMap[key]);
-                        } else {
-                            unsigned short newIndex = vertices.size();
-                            vertices.push_back(midpoint);
-                            vertexMap[key] = newIndex;
-                            indices.push_back(newIndex);
-                        }
+                    Vector3 normal = Vector3Normalize(Vector3CrossProduct(
+                        Vector3Subtract(tri_vertices[1], tri_vertices[0]), 
+                        Vector3Subtract(tri_vertices[2], tri_vertices[0])
+                    ));
+                    
+                    textureAtlas texInfo = textures[determineSurfaceTexture(grid, x, y, z)];
+                    float u_start = texInfo.uOffset / atlasWidth;
+                    float v_start = texInfo.vOffset / atlasHeight;
+                    float u_scale = texInfo.width / atlasWidth;
+                    float v_scale = texInfo.height / atlasHeight;
+
+                    Vector2 tri_uvs[3];
+                    for(int j=0; j<3; j++) {
+                        Vector3 p = tri_vertices[j];
+                        Vector3 cube_origin = {(float)x, (float)y, (float)z};
+                        Vector3 local_p = Vector3Subtract(p, cube_origin);
+
+                        // Triplanar blending weights
+                        float wx = fabs(normal.x);
+                        float wy = fabs(normal.y);
+                        float wz = fabs(normal.z);
+                        float sum = wx + wy + wz;
+                        wx /= sum; wy /= sum; wz /= sum;
+
+                        // Local projections onto each axis plane
+                        Vector2 uvX = { local_p.y, local_p.z }; // Project onto YZ plane (X axis)
+                        Vector2 uvY = { local_p.x, local_p.z }; // Project onto XZ plane (Y axis)
+                        Vector2 uvZ = { local_p.x, local_p.y }; // Project onto XY plane (Z axis)
+
+                        // Blend projections
+                        Vector2 uv = {
+                            uvX.x * wx + uvY.x * wy + uvZ.x * wz,
+                            uvX.y * wx + uvY.y * wy + uvZ.y * wz
+                        };
+
+                        // Apply atlas offsets and scale
+                        tri_uvs[j].x = u_start + uv.x * u_scale;
+                        tri_uvs[j].y = v_start + uv.y * v_scale;
+                    }
+
+                    // --- Add triangle to mesh data ---
+                    for(int j=0; j<3; j++) {
+                        mesh_vertices.push_back(tri_vertices[j]);
+                        mesh_texcoords.push_back(tri_uvs[j]);
+                        mesh_normals.push_back(normal);
                     }
                 }
             }
         }
     }
+
+    int vertexCount = mesh_vertices.size();
+    int triangleCount = vertexCount / 3;
+
     Mesh mesh = {
-        (int)vertices.size(),
-        (int)indices.size() / 3,
-        (float*)MemAlloc(mesh.vertexCount * 3 * sizeof(float)),
-        (float*)MemAlloc(mesh.vertexCount * 3 * sizeof(float)),
+        vertexCount,
+        triangleCount,
+        (float*)MemAlloc(vertexCount * 3 * sizeof(float)),
+        (float*)MemAlloc(vertexCount * 2 * sizeof(float)),
         nullptr,
-        (float*)MemAlloc(mesh.vertexCount * 3 * sizeof(float)),
+        (float*)MemAlloc(vertexCount * 3 * sizeof(float)),
         nullptr,
-        (unsigned char*)MemAlloc(mesh.vertexCount * 4 * sizeof(unsigned char)),
-        (unsigned short*)MemAlloc(mesh.triangleCount * 3 * sizeof(unsigned short)),
+        (unsigned char*)MemAlloc(vertexCount * 4 * sizeof(unsigned char)),
+        nullptr,
         nullptr,
         nullptr,
         nullptr,
@@ -82,81 +167,34 @@ Mesh MarchingCubes::generateMeshFromGrid(VoxelGrid& grid) {
         0,
         0,
         0};
-
-    for(unsigned int i = 0; i < vertices.size(); i++) {
-        mesh.vertices[i*3] = vertices[i].x;
-        mesh.vertices[i*3+1] = vertices[i].y;
-        mesh.vertices[i*3+2] = vertices[i].z;
-    }
-
-    for(unsigned int i = 0; i < indices.size(); i++) {
-        mesh.indices[i] = indices[i];
-    }
-
     
-
-    // Calculate min/max Y for height-based coloring
-    float minY = vertices[0].y;
-    float maxY = vertices[0].y;
-    for (unsigned int i = 0; i < vertices.size(); i++) {
-        if (vertices[i].y < minY) minY = vertices[i].y;
-        if (vertices[i].y > maxY) maxY = vertices[i].y;
-    }
-
-    // Assign height-based colors
-    for (unsigned int i = 0; i < vertices.size(); i++) {
-        float normalizedY = (vertices[i].y - minY) / (maxY - minY); // 0.0 to 1.0
-
-        Color color;
-        if (normalizedY < 0.5f) {
-            // Blend from blue to green
-            color.r = (unsigned char)(0 * (1.0f - normalizedY * 2) + 0 * (normalizedY * 2));
-            color.g = (unsigned char)(0 * (1.0f - normalizedY * 2) + 255 * (normalizedY * 2));
-            color.b = (unsigned char)(255 * (1.0f - normalizedY * 2) + 0 * (normalizedY * 2));
-        } else {
-            // Blend from green to yellow
-            color.r = (unsigned char)(0 * (1.0f - (normalizedY - 0.5f) * 2) + 255 * ((normalizedY - 0.5f) * 2));
-            color.g = (unsigned char)(255 * (1.0f - (normalizedY - 0.5f) * 2) + 255 * ((normalizedY - 0.5f) * 2));
-            color.b = (unsigned char)(0 * (1.0f - (normalizedY - 0.5f) * 2) + 0 * ((normalizedY - 0.5f) * 2));
-        }
-        color.a = 255; // Full opacity
-
-        mesh.colors[i*4] = color.r;
-        mesh.colors[i*4+1] = color.g;
-        mesh.colors[i*4+2] = color.b;
-        mesh.colors[i*4+3] = color.a;
-    }
-
-    for(int i = 0; i < mesh.triangleCount; i++) {
-        unsigned short i1 = mesh.indices[i*3];
-        unsigned short i2 = mesh.indices[i*3+1];
-        unsigned short i3 = mesh.indices[i*3+2];
-
-        Vector3 v1 = {mesh.vertices[i1*3], mesh.vertices[i1*3+1], mesh.vertices[i1*3+2]};
-        Vector3 v2 = {mesh.vertices[i2*3], mesh.vertices[i2*3+1], mesh.vertices[i2*3+2]};
-        Vector3 v3 = {mesh.vertices[i3*3], mesh.vertices[i3*3+1], mesh.vertices[i3*3+2]};
-
-        Vector3 normal = Vector3Normalize(Vector3CrossProduct(Vector3Subtract(v2, v1), Vector3Subtract(v3, v1)));
-
-        mesh.normals[i1*3] += normal.x;
-        mesh.normals[i1*3+1] += normal.y;
-        mesh.normals[i1*3+2] += normal.z;
-        mesh.normals[i2*3] += normal.x;
-        mesh.normals[i2*3+1] += normal.y;
-        mesh.normals[i2*3+2] += normal.z;
-        mesh.normals[i3*3] += normal.x;
-        mesh.normals[i3*3+1] += normal.y;
-        mesh.normals[i3*3+2] += normal.z;
-    }
+    // Simple directional lighting parameters
+    const Vector3 sunDir = Vector3Normalize({ 1.0f, 1.0f, 0.5f });
+    const float ambient = 0.2f;
+    const float diffuse = 0.8f;
 
     for(int i = 0; i < mesh.vertexCount; i++) {
-        Vector3 normal = {mesh.normals[i*3], mesh.normals[i*3+1], mesh.normals[i*3+2]};
-        normal = Vector3Normalize(normal);
-        mesh.normals[i*3] = normal.x;
-        mesh.normals[i*3+1] = normal.y;
-        mesh.normals[i*3+2] = normal.z;
+        mesh.vertices[i*3 + 0] = mesh_vertices[i].x;
+        mesh.vertices[i*3 + 1] = mesh_vertices[i].y;
+        mesh.vertices[i*3 + 2] = mesh_vertices[i].z;
+
+        mesh.normals[i*3 + 0] = mesh_normals[i].x;
+        mesh.normals[i*3 + 1] = mesh_normals[i].y;
+        mesh.normals[i*3 + 2] = mesh_normals[i].z;
+
+        mesh.texcoords[i*2 + 0] = mesh_texcoords[i].x;
+        mesh.texcoords[i*2 + 1] = mesh_texcoords[i].y;
+        
+        // Compute simple Lambertian lighting
+        float ndotl = Vector3DotProduct(mesh_normals[i], sunDir);
+        if(ndotl < 0.0f) ndotl = 0.0f;
+        float intensity = ambient + diffuse * ndotl;
+        unsigned char lightVal = (unsigned char)(255.0f * intensity);
+        mesh.colors[i*4 + 0] = lightVal;
+        mesh.colors[i*4 + 1] = lightVal;
+        mesh.colors[i*4 + 2] = lightVal;
+        mesh.colors[i*4 + 3] = 255;
     }
 
     return mesh;
 }
-

@@ -17,15 +17,17 @@ int main() {
     RenderTexture2D texture = LoadRenderTexture(320, 240);
 
     DisableCursor();
-    VoxelGrid voxelGrid(16, 16, 16);
-    voxelGrid.generatePerlinTerrain(0.07f, 16, 16);
+    VoxelGrid voxelGrid(32, 32, 32);
+    voxelGrid.generatePerlinTerrain(0.1f, 16, 16);
 
     MarchingCubes marchingCubes;
     Mesh mesh = marchingCubes.generateMeshFromGrid(voxelGrid);
     UploadMesh(&mesh, true);
     Model model = LoadModelFromMesh(mesh);
+    Texture2D textureAtlas = LoadTexture("textures.png");
+    model.materials[0].maps[MATERIAL_MAP_DIFFUSE].texture = textureAtlas;
 
-    Camera3D camera = { {16.0f, 16.0f, 16.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 1.0f, 0.0f}, 60.0f, CAMERA_PERSPECTIVE };
+    Camera3D camera = { {16.0f, 16.0f, 16.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 1.0f, 0.0f}, 45.0f, CAMERA_ORTHOGRAPHIC};
 
     SetTargetFPS(60);
     bool showGrid = true;
@@ -52,6 +54,7 @@ int main() {
                 mesh = marchingCubes.generateMeshFromGrid(voxelGrid);
                 UploadMesh(&mesh, true); // Re-upload the new mesh data
                 model = LoadModelFromMesh(mesh);
+                model.materials[0].maps[MATERIAL_MAP_DIFFUSE].texture = textureAtlas;
             }
         }
 

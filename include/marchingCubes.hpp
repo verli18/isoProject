@@ -311,6 +311,7 @@ class MarchingCubes
             {-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1}
         };
 
+        int determineSurfaceTexture(VoxelGrid& grid, int x, int y, int z);
         Mesh generateMeshFromGrid(VoxelGrid& grid);
     };
 
