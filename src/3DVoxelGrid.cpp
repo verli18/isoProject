@@ -1,120 +1,125 @@
 #include "../include/3DvoxelGrid.hpp"
+#include "../include/textureAtlas.hpp"
+#include <cfloat>  // for FLT_MAX
+#include <cmath>
+#include <cstring>
+#include <raymath.h>
 
-VoxelGrid::VoxelGrid(int width, int height, int depth) {
+VoxelGrid::VoxelGrid(int width, int height) {
     this->width = width;
     this->height = height;
-    this->depth = depth;
-    grid.resize(width, std::vector<std::vector<Voxels>>(height, std::vector<Voxels>(depth)));
+    grid.resize(width, std::vector<tile>(height));
 }
 
 VoxelGrid::~VoxelGrid() {
 }
 
-void VoxelGrid::setVoxel(int x, int y, int z, Voxels voxel) {
-    grid[x][y][z] = voxel;
+void VoxelGrid::setVoxel(int x, int y, tile voxel) {
+    grid[x][y] = voxel;
 }
 
-Voxels VoxelGrid::getVoxel(int x, int y, int z) {
-    return grid[x][y][z];
+tile VoxelGrid::getVoxel(int x, int y) {
+    return grid[x][y];
 }
 
-void VoxelGrid::generatePerlinTerrain(float scale, int offsetX, int offsetY) {
-    perlinNoise = GenImagePerlinNoise(width, height, offsetX, offsetY,  1);
-    Color sample;
+void VoxelGrid::generatePerlinTerrain(float scale, int offsetX, int offsetY, int heightCo) {
+    // Generate noise image with extra row/column to share corner samples between tiles
+    perlinNoise = GenImagePerlinNoise(width + 1, height + 1, offsetX, offsetY, (int)scale);
     for (int x = 0; x < width; x++) {
-        for (int z = 0; z < height; z++) {
-            sample = GetImageColor(perlinNoise, x, z);
-            int colHeight = std::min((int)(sample.r * scale), depth);
-            if (colHeight <= 0) continue;
+        for (int y = 0; y < height; y++) {
+            tile t;
+            // Sample the four tile corners
+            Color cTL = GetImageColor(perlinNoise, x,     y);
+            Color cTR = GetImageColor(perlinNoise, x + 1, y);
+            Color cBL = GetImageColor(perlinNoise, x,     y + 1);
+            Color cBR = GetImageColor(perlinNoise, x + 1, y + 1);
+            // Use red channel value as height for now
+            t.tileHeight[0] = cTL.r / heightCo;
+            t.tileHeight[1] = cTR.r / heightCo;
+            t.tileHeight[2] = cBR.r / heightCo;
+            t.tileHeight[3] = cBL.r / heightCo;
 
-            int snowLine = (int)(depth * 0.50f);
-            for (int y = 0; y < colHeight; y++) {
-                if (y == colHeight - 1) {
-                    // Top block
-                    if (colHeight > snowLine) {
-                        setVoxel(x, y, z, Voxels{3, {230, 230, 255, 255}, true, false}); // Snow
-                    } else {
-                        setVoxel(x, y, z, Voxels{2, {80, 200, 80, 255}, true, false}); // Grass
-                    }
-                } else {
-                    // Below top
-                    if (colHeight > snowLine) {
-                        setVoxel(x, y, z, Voxels{4, {120, 120, 120, 255}, true, false}); // Stone
-                    } else {
-                        setVoxel(x, y, z, Voxels{1, {139, 69, 19, 255}, true, false}); // Dirt
+            // Clamp slopes
+            for (int i = 0; i < 4; ++i) {
+                for (int j = i + 1; j < 4; ++j) {
+                    if (std::abs(t.tileHeight[i] - t.tileHeight[j]) > 1) {
+                        if (t.tileHeight[i] < t.tileHeight[j]) {
+                            t.tileHeight[j] = t.tileHeight[i] + 1;
+                        } else {
+                            t.tileHeight[i] = t.tileHeight[j] + 1;
+                        }
                     }
                 }
             }
+
+            // Assign grass type
+            t.type = 1;
+            // Default lighting placeholder
+            t.lighting = WHITE;
+            setVoxel(x, y, t);
         }
     }
     UnloadImage(perlinNoise);
 }
 
+// Ray-based tile picking: intersect ray with mesh of tile surfaces
 Vector3 VoxelGrid::getVoxelIndexDDA(Ray ray) {
-    Vector3 rayStart = ray.position;
-    Vector3 rayDir = ray.direction;
-
-    // Current voxel coordinates (integer)
-    Vector3 currentVoxel = { (float)floor(rayStart.x), (float)floor(rayStart.y), (float)floor(rayStart.z) };
-
-    // Direction to step in x, y, z (either +1 or -1)
-    Vector3 step = { (rayDir.x >= 0) ? 1.0f : -1.0f, (rayDir.y >= 0) ? 1.0f : -1.0f, (rayDir.z >= 0) ? 1.0f : -1.0f };
-
-    // Distance to travel along the ray to cross one voxel unit in x, y, z
-    Vector3 tDelta = { fabsf(1.0f / rayDir.x), fabsf(1.0f / rayDir.y), fabsf(1.0f / rayDir.z) };
-
-    // Distance to the next voxel boundary in x, y, z
-    float nextX = (rayDir.x >= 0) ? (currentVoxel.x + 1.0f - rayStart.x) : (rayStart.x - currentVoxel.x);
-    float nextY = (rayDir.y >= 0) ? (currentVoxel.y + 1.0f - rayStart.y) : (rayStart.y - currentVoxel.y);
-    float nextZ = (rayDir.z >= 0) ? (currentVoxel.z + 1.0f - rayStart.z) : (rayStart.z - currentVoxel.z);
-    Vector3 tMax = { tDelta.x * nextX, tDelta.y * nextY, tDelta.z * nextZ };
-
-    int maxSteps = 100; // Safety break to prevent infinite loops
-
-    for (int i = 0; i < maxSteps; ++i) {
-        // Check if current voxel is inside grid bounds
-        if (currentVoxel.x >= 0 && currentVoxel.x < width &&
-            currentVoxel.y >= 0 && currentVoxel.y < height &&
-            currentVoxel.z >= 0 && currentVoxel.z < depth) {
-            
-            // If the current voxel is solid, we've found our target
-            if (getVoxel(currentVoxel.x, currentVoxel.y, currentVoxel.z).type != 0) {
-                return currentVoxel; // Return the coordinates of the hit voxel
+    Vector3 bestHitPos = { -1, -1, -1 };
+    float minDistance = FLT_MAX;
+    // Iterate over all tiles
+    for (int x = 0; x < width; ++x) {
+        for (int y = 0; y < height; ++y) {
+            tile t = getVoxel(x, y);
+            // Build tile surface triangles
+            Vector3 v0 = { (float)x,     (float)t.tileHeight[0], (float)y     };
+            Vector3 v1 = { (float)x + 1, (float)t.tileHeight[1], (float)y     };
+            Vector3 v2 = { (float)x + 1, (float)t.tileHeight[2], (float)y + 1 };
+            Vector3 v3 = { (float)x,     (float)t.tileHeight[3], (float)y + 1 };
+            // Check collision for first triangle
+            RayCollision hit = GetRayCollisionTriangle(ray, v0, v1, v2);
+            if (hit.hit && hit.distance < minDistance) {
+                minDistance = hit.distance;
+                bestHitPos = hit.point;
             }
-        }
-
-        // Advance to the next voxel
-        if (tMax.x < tMax.y) {
-            if (tMax.x < tMax.z) {
-                currentVoxel.x += step.x;
-                tMax.x += tDelta.x;
-            } else {
-                currentVoxel.z += step.z;
-                tMax.z += tDelta.z;
-            }
-        } else {
-            if (tMax.y < tMax.z) {
-                currentVoxel.y += step.y;
-                tMax.y += tDelta.y;
-            } else {
-                currentVoxel.z += step.z;
-                tMax.z += tDelta.z;
+            // Check collision for second triangle
+            hit = GetRayCollisionTriangle(ray, v0, v2, v3);
+            if (hit.hit && hit.distance < minDistance) {
+                minDistance = hit.distance;
+                bestHitPos = hit.point;
             }
         }
     }
-
-    // If no solid voxel was found within maxSteps, return an invalid position
-    return {-1, -1, -1};
+    return bestHitPos;
 }
 
-void VoxelGrid::render() {
+void VoxelGrid::renderWires() {
     for (int x = 0; x < width; x++) {
-        for (int z = 0; z < height; z++) {
-            for (int y = 0; y < depth; y++) {
-                if (getVoxel(x, y, z).type != 0) {
-                    DrawPoint3D({(float)x, (float)y, (float)z}, getVoxel(x, y, z).lighting);
-                }
-            }
+        for (int y = 0; y < height; y++) {
+            tile t = getVoxel(x, y);
+            // Define the four corner vertices in 3D space
+            Vector3 v0 = {(float)x,     (float)t.tileHeight[0], (float)y};
+            Vector3 v1 = {(float)x + 1, (float)t.tileHeight[1], (float)y};
+            Vector3 v2 = {(float)x + 1, (float)t.tileHeight[2], (float)y + 1};
+            Vector3 v3 = {(float)x,     (float)t.tileHeight[3], (float)y + 1};
+            // Draw two triangles for the top face
+            DrawLine3D(v2, v1, t.lighting);
+            DrawLine3D(v3, v2, t.lighting);
+            DrawLine3D(v3, v0, t.lighting);
+        }
+    }
+}
+
+void VoxelGrid::renderSurface() {
+    for (int x = 0; x < width; x++) {
+        for (int y = 0; y < height; y++) {
+            tile t = getVoxel(x, y);
+            Vector3 v0 = {(float)x,     (float)t.tileHeight[0], (float)y};
+            Vector3 v1 = {(float)x + 1, (float)t.tileHeight[1], (float)y};
+            Vector3 v2 = {(float)x + 1, (float)t.tileHeight[2], (float)y + 1};
+            Vector3 v3 = {(float)x,     (float)t.tileHeight[3], (float)y + 1};
+            
+            DrawTriangle3D(v2, v1, v0, t.lighting);
+            DrawTriangle3D(v3, v2, v1, t.lighting);
         }
     }
 }
@@ -122,3 +127,102 @@ void VoxelGrid::render() {
 unsigned int VoxelGrid::getWidth() { return width; }
 unsigned int VoxelGrid::getHeight() { return height; }
 unsigned int VoxelGrid::getDepth() { return depth; }
+
+void VoxelGrid::generateMesh() {
+    // Assuming texture atlas dimensions (you may want to make these configurable)
+    const float atlasWidth = 64.0f;  // Total atlas width in pixels
+    const float atlasHeight = 16.0f; // Total atlas height in pixels
+    
+    std::vector<Vector3> vertices;
+    std::vector<Vector2> texcoords;
+    std::vector<Vector3> normals;
+
+    for(int x = 0; x < width; x++) {
+        for(int y = 0; y < height; y++) {
+            tile t = getVoxel(x, y);
+            
+            // Skip air tiles
+            if(t.type == AIR) continue;
+            
+            Vector3 v0 = {(float)x,     (float)t.tileHeight[0], (float)y};
+            Vector3 v1 = {(float)x + 1, (float)t.tileHeight[1], (float)y};
+            Vector3 v2 = {(float)x + 1, (float)t.tileHeight[2], (float)y + 1};
+            Vector3 v3 = {(float)x,     (float)t.tileHeight[3], (float)y + 1};
+            
+            // Get texture atlas info for this tile type
+            textureAtlas atlas = textures[t.type];
+            
+            // Calculate UV coordinates for the top face
+            float uMin = (float)atlas.uOffset / atlasWidth;
+            float vMin = (float)atlas.vOffset / atlasHeight;
+            float uMax = (float)(atlas.uOffset + atlas.width) / atlasWidth;
+            float vMax = (float)(atlas.vOffset + atlas.height) / atlasHeight;
+            
+            // First triangle: v2, v1, v0 (counter-clockwise)
+            vertices.push_back(v2);
+            vertices.push_back(v1);
+            vertices.push_back(v0);
+            
+            // Second triangle: v3, v2, v0 (counter-clockwise)
+            vertices.push_back(v3);
+            vertices.push_back(v2);
+            vertices.push_back(v0);
+            
+            // Texture coordinates for each vertex (6 vertices total)
+            // First triangle: v2, v1, v0
+            texcoords.push_back(Vector2{uMax, vMax});  // v2 (bottom-right)
+            texcoords.push_back(Vector2{uMax, vMin});  // v1 (top-right)
+            texcoords.push_back(Vector2{uMin, vMin});  // v0 (top-left)
+            
+            // Second triangle: v3, v2, v0
+            texcoords.push_back(Vector2{uMin, vMax});  // v3 (bottom-left)
+            texcoords.push_back(Vector2{uMax, vMax});  // v2 (bottom-right)
+            texcoords.push_back(Vector2{uMin, vMin});  // v0 (top-left)
+            
+            // Calculate face normal for both triangles
+            Vector3 edge1 = Vector3Subtract(v1, v0);
+            Vector3 edge2 = Vector3Subtract(v2, v0);
+            Vector3 normal = Vector3Normalize(Vector3CrossProduct(edge1, edge2));
+            
+            // Add normals for all 6 vertices
+            for(int i = 0; i < 6; i++) {
+                normals.push_back(normal);
+            }
+        }
+    }
+    
+    int vertexCount = vertices.size();
+    int triangleCount = vertexCount / 3;
+
+    // Create mesh structure and allocate memory
+    mesh = {0};
+    mesh.vertexCount = vertexCount;
+    mesh.triangleCount = triangleCount;
+    
+    // Allocate and copy vertex data
+    mesh.vertices = (float*)MemAlloc(vertexCount * 3 * sizeof(float));
+    mesh.texcoords = (float*)MemAlloc(vertexCount * 2 * sizeof(float));
+    mesh.normals = (float*)MemAlloc(vertexCount * 3 * sizeof(float));
+    
+    // Copy vertex data
+    for(int i = 0; i < vertexCount; i++) {
+        mesh.vertices[i * 3 + 0] = vertices[i].x;
+        mesh.vertices[i * 3 + 1] = vertices[i].y;
+        mesh.vertices[i * 3 + 2] = vertices[i].z;
+        
+        mesh.texcoords[i * 2 + 0] = texcoords[i].x;
+        mesh.texcoords[i * 2 + 1] = texcoords[i].y;
+        
+        mesh.normals[i * 3 + 0] = normals[i].x;
+        mesh.normals[i * 3 + 1] = normals[i].y;
+        mesh.normals[i * 3 + 2] = normals[i].z;
+    }
+    
+    // Upload mesh to GPU
+    UploadMesh(&mesh, false);
+    
+    // Create model from mesh
+    model = LoadModelFromMesh(mesh);
+    model.materials[0].maps[MATERIAL_MAP_DIFFUSE].texture = LoadTexture("textures.png");
+}
+

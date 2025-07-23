@@ -27,8 +27,8 @@ void Chunk::renderWires() {
 }
 
 void Chunk::generateMesh() {
-    voxelGrid.generatePerlinTerrain(0.07f, chunkX, chunkZ);
-    mesh = marchingCubes.generateMeshFromGrid(voxelGrid);
+    voxelGrid.generatePerlinTerrain(0.07f, chunkX, chunkZ, 10);
+    voxelGrid.generateMesh();
     meshGenerated = true;
 
     UploadMesh(&mesh, false);
@@ -38,7 +38,7 @@ void Chunk::generateMesh() {
 
 void Chunk::updateMesh() {
     UnloadModel(model);
-    mesh = marchingCubes.generateMeshFromGrid(voxelGrid); 
+    voxelGrid.generateMesh();
 
     UploadMesh(&mesh, false);
     model = LoadModelFromMesh(mesh);

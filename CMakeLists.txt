@@ -23,8 +23,8 @@ include_directories(${RAYLIB_INCLUDE_DIRS})
 set(SOURCES
     src/main.cpp
     src/3DVoxelGrid.cpp
-    src/marchingCubes.cpp
-    src/chunk.cpp
+    #src/marchingCubes.cpp
+    #src/chunk.cpp
 )
 
 # Add include directories
@@ -81,5 +81,5 @@ endif()
 if(MSVC)
     target_compile_options(${PROJECT_NAME} PRIVATE /W4 /WX)
 else()
-    target_compile_options(${PROJECT_NAME} PRIVATE -g -Wall -Wextra -Wpedantic -Werror)
+    target_compile_options(${PROJECT_NAME} PRIVATE -g -Wall -Wextra -Wpedantic)
 endif()
