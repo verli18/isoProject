@@ -3,6 +3,7 @@
 #include <cfloat>  // for FLT_MAX
 #include <cmath>
 #include <cstring>
+#include <algorithm>  // for std::min
 #include <raymath.h>
 
 VoxelGrid::VoxelGrid(int width, int height) {
@@ -187,6 +188,131 @@ void VoxelGrid::generateMesh() {
             // Add normals for all 6 vertices
             for(int i = 0; i < 6; i++) {
                 normals.push_back(normal);
+            }
+            
+            // Generate side faces (walls) where there are height differences
+            // Calculate UV coordinates for side faces
+            float sideUMin = (float)atlas.sideUOffset / atlasWidth;
+            float sideVMin = (float)atlas.sideVOffset / atlasHeight;
+            float sideUMax = (float)(atlas.sideUOffset + atlas.width) / atlasWidth;
+            float sideVMax = (float)(atlas.sideVOffset + atlas.height) / atlasHeight;
+            
+            // Check each edge for height differences and generate wall faces
+            
+            // Edge 0->1 (front edge)
+            if (t.tileHeight[0] != t.tileHeight[1]) {
+                float minHeight = std::min(t.tileHeight[0], t.tileHeight[1]);
+                Vector3 w0 = {(float)x,     minHeight, (float)y};
+                Vector3 w1 = {(float)x + 1, minHeight, (float)y};
+                
+                // Wall face
+                vertices.push_back(v0);
+                vertices.push_back(w0);
+                vertices.push_back(w1);
+                vertices.push_back(v0);
+                vertices.push_back(w1);
+                vertices.push_back(v1);
+                
+                // Side texture coordinates
+                texcoords.push_back(Vector2{sideUMin, sideVMin});
+                texcoords.push_back(Vector2{sideUMin, sideVMax});
+                texcoords.push_back(Vector2{sideUMax, sideVMax});
+                texcoords.push_back(Vector2{sideUMin, sideVMin});
+                texcoords.push_back(Vector2{sideUMax, sideVMax});
+                texcoords.push_back(Vector2{sideUMax, sideVMin});
+                
+                // Wall normal (facing negative Z)
+                Vector3 wallNormal = {0, 0, -1};
+                for(int i = 0; i < 6; i++) {
+                    normals.push_back(wallNormal);
+                }
+            }
+            
+            // Edge 1->2 (right edge)
+            if (t.tileHeight[1] != t.tileHeight[2]) {
+                float minHeight = std::min(t.tileHeight[1], t.tileHeight[2]);
+                Vector3 w1 = {(float)x + 1, minHeight, (float)y};
+                Vector3 w2 = {(float)x + 1, minHeight, (float)y + 1};
+                
+                // Wall face
+                vertices.push_back(v1);
+                vertices.push_back(w1);
+                vertices.push_back(w2);
+                vertices.push_back(v1);
+                vertices.push_back(w2);
+                vertices.push_back(v2);
+                
+                // Side texture coordinates
+                texcoords.push_back(Vector2{sideUMin, sideVMin});
+                texcoords.push_back(Vector2{sideUMin, sideVMax});
+                texcoords.push_back(Vector2{sideUMax, sideVMax});
+                texcoords.push_back(Vector2{sideUMin, sideVMin});
+                texcoords.push_back(Vector2{sideUMax, sideVMax});
+                texcoords.push_back(Vector2{sideUMax, sideVMin});
+                
+                // Wall normal (facing positive X)
+                Vector3 wallNormal = {1, 0, 0};
+                for(int i = 0; i < 6; i++) {
+                    normals.push_back(wallNormal);
+                }
+            }
+            
+            // Edge 2->3 (back edge)
+            if (t.tileHeight[2] != t.tileHeight[3]) {
+                float minHeight = std::min(t.tileHeight[2], t.tileHeight[3]);
+                Vector3 w2 = {(float)x + 1, minHeight, (float)y + 1};
+                Vector3 w3 = {(float)x,     minHeight, (float)y + 1};
+                
+                // Wall face
+                vertices.push_back(v2);
+                vertices.push_back(w2);
+                vertices.push_back(w3);
+                vertices.push_back(v2);
+                vertices.push_back(w3);
+                vertices.push_back(v3);
+                
+                // Side texture coordinates
+                texcoords.push_back(Vector2{sideUMin, sideVMin});
+                texcoords.push_back(Vector2{sideUMin, sideVMax});
+                texcoords.push_back(Vector2{sideUMax, sideVMax});
+                texcoords.push_back(Vector2{sideUMin, sideVMin});
+                texcoords.push_back(Vector2{sideUMax, sideVMax});
+                texcoords.push_back(Vector2{sideUMax, sideVMin});
+                
+                // Wall normal (facing positive Z)
+                Vector3 wallNormal = {0, 0, 1};
+                for(int i = 0; i < 6; i++) {
+                    normals.push_back(wallNormal);
+                }
+            }
+            
+            // Edge 3->0 (left edge)
+            if (t.tileHeight[3] != t.tileHeight[0]) {
+                float minHeight = std::min(t.tileHeight[3], t.tileHeight[0]);
+                Vector3 w3 = {(float)x,     minHeight, (float)y + 1};
+                Vector3 w0 = {(float)x,     minHeight, (float)y};
+                
+                // Wall face
+                vertices.push_back(v3);
+                vertices.push_back(w3);
+                vertices.push_back(w0);
+                vertices.push_back(v3);
+                vertices.push_back(w0);
+                vertices.push_back(v0);
+                
+                // Side texture coordinates
+                texcoords.push_back(Vector2{sideUMin, sideVMin});
+                texcoords.push_back(Vector2{sideUMin, sideVMax});
+                texcoords.push_back(Vector2{sideUMax, sideVMax});
+                texcoords.push_back(Vector2{sideUMin, sideVMin});
+                texcoords.push_back(Vector2{sideUMax, sideVMax});
+                texcoords.push_back(Vector2{sideUMax, sideVMin});
+                
+                // Wall normal (facing negative X)
+                Vector3 wallNormal = {-1, 0, 0};
+                for(int i = 0; i < 6; i++) {
+                    normals.push_back(wallNormal);
+                }
             }
         }
     }
