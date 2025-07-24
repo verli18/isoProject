@@ -1,14 +1,13 @@
 #include <vector>
 #include <raylib.h>
-#include <cmath>
 
 
 struct tile{
     //alright we're scrapping the marching cubes shit, that is way too annoying to deal with and honestly we won't even need layers of terrain so no use for that, let's use collumns now
     char type; //0 for air
-    int tileHeight[4]; //one for each corner
-    Color lighting;
-    
+    float tileHeight[4]; //one for each corner
+    Color lighting[4];
+
 };
 
 class VoxelGrid {
@@ -22,6 +21,7 @@ class VoxelGrid {
         void renderWires();
 
         void generateMesh();
+        void updateLighting(Vector3 sunDirection, Vector3 sunColor, float ambientStrength, Vector3 ambientColor, float shiftIntensity, float shiftDisplacement);
 
         Mesh mesh;
 
@@ -32,6 +32,15 @@ class VoxelGrid {
         Vector3 getVoxelIndexDDA(Ray ray);
 
         Model model;
+        Shader terrainShader;
+        
+        // Lighting uniforms
+        int sunDirectionLoc;
+        int sunColorLoc;
+        int ambientStrengthLoc;
+        int ambientColorLoc;
+        float shiftIntensityLoc;
+        float shiftDisplacementLoc;
     private:
         Image perlinNoise;
         int width;

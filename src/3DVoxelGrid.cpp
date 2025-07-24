@@ -2,8 +2,6 @@
 #include "../include/textureAtlas.hpp"
 #include <cfloat>  // for FLT_MAX
 #include <cmath>
-#include <cstring>
-#include <algorithm>  // for std::min
 #include <raymath.h>
 
 VoxelGrid::VoxelGrid(int width, int height) {
@@ -34,11 +32,11 @@ void VoxelGrid::generatePerlinTerrain(float scale, int offsetX, int offsetY, int
             Color cTR = GetImageColor(perlinNoise, x + 1, y);
             Color cBL = GetImageColor(perlinNoise, x,     y + 1);
             Color cBR = GetImageColor(perlinNoise, x + 1, y + 1);
-            // Use red channel value as height for now
-            t.tileHeight[0] = cTL.r / heightCo;
-            t.tileHeight[1] = cTR.r / heightCo;
-            t.tileHeight[2] = cBR.r / heightCo;
-            t.tileHeight[3] = cBL.r / heightCo;
+
+            t.tileHeight[0] = std::round((float)cTL.r / heightCo * 2.0f) / 2.0f;
+            t.tileHeight[1] = std::round((float)cTR.r / heightCo * 2.0f) / 2.0f;
+            t.tileHeight[2] = std::round((float)cBR.r / heightCo * 2.0f) / 2.0f;
+            t.tileHeight[3] = std::round((float)cBL.r / heightCo * 2.0f) / 2.0f;
 
             // Clamp slopes
             for (int i = 0; i < 4; ++i) {
@@ -53,10 +51,14 @@ void VoxelGrid::generatePerlinTerrain(float scale, int offsetX, int offsetY, int
                 }
             }
 
-            // Assign grass type
-            t.type = 1;
+            // Assign tile type based on height: snow at high altitudes, grass otherwise
+            {
+                float avgH = (t.tileHeight[0] + t.tileHeight[1] + t.tileHeight[2] + t.tileHeight[3]) / 4.0f;
+                float threshold = heightCo * 0.5f;
+                t.type = (avgH > threshold) ? SNOW : GRASS;
+            }
             // Default lighting placeholder
-            t.lighting = WHITE;
+            t.lighting[0] = WHITE;
             setVoxel(x, y, t);
         }
     }
@@ -103,9 +105,9 @@ void VoxelGrid::renderWires() {
             Vector3 v2 = {(float)x + 1, (float)t.tileHeight[2], (float)y + 1};
             Vector3 v3 = {(float)x,     (float)t.tileHeight[3], (float)y + 1};
             // Draw two triangles for the top face
-            DrawLine3D(v2, v1, t.lighting);
-            DrawLine3D(v3, v2, t.lighting);
-            DrawLine3D(v3, v0, t.lighting);
+            DrawLine3D(v2, v1, t.lighting[0]);
+            DrawLine3D(v3, v2, t.lighting[0]);
+            DrawLine3D(v3, v0, t.lighting[0]);
         }
     }
 }
@@ -119,8 +121,8 @@ void VoxelGrid::renderSurface() {
             Vector3 v2 = {(float)x + 1, (float)t.tileHeight[2], (float)y + 1};
             Vector3 v3 = {(float)x,     (float)t.tileHeight[3], (float)y + 1};
             
-            DrawTriangle3D(v2, v1, v0, t.lighting);
-            DrawTriangle3D(v3, v2, v1, t.lighting);
+            DrawTriangle3D(v2, v1, v0, t.lighting[0]);
+            DrawTriangle3D(v3, v2, v1, t.lighting[0]);
         }
     }
 }
@@ -163,7 +165,7 @@ void VoxelGrid::generateMesh() {
             vertices.push_back(v2);
             vertices.push_back(v1);
             vertices.push_back(v0);
-            
+
             // Second triangle: v3, v2, v0 (counter-clockwise)
             vertices.push_back(v3);
             vertices.push_back(v2);
@@ -180,15 +182,23 @@ void VoxelGrid::generateMesh() {
             texcoords.push_back(Vector2{uMax, vMax});  // v2 (bottom-right)
             texcoords.push_back(Vector2{uMin, vMin});  // v0 (top-left)
             
-            // Calculate face normal for both triangles
-            Vector3 edge1 = Vector3Subtract(v1, v0);
-            Vector3 edge2 = Vector3Subtract(v2, v0);
-            Vector3 normal = Vector3Normalize(Vector3CrossProduct(edge1, edge2));
-            
-            // Add normals for all 6 vertices
-            for(int i = 0; i < 6; i++) {
-                normals.push_back(normal);
-            }
+            // Calculate normal for the first triangle (v2, v1, v0)
+            Vector3 n1_edge1 = Vector3Subtract(v1, v0);
+            Vector3 n1_edge2 = Vector3Subtract(v2, v0);
+            Vector3 normal1 = Vector3Normalize(Vector3CrossProduct(n1_edge1, n1_edge2));
+            // Add normals for first triangle vertices
+            normals.push_back(normal1);
+            normals.push_back(normal1);
+            normals.push_back(normal1);
+
+            // Calculate normal for the second triangle (v3, v2, v0)
+            Vector3 n2_edge1 = Vector3Subtract(v2, v0);
+            Vector3 n2_edge2 = Vector3Subtract(v3, v0);
+            Vector3 normal2 = Vector3Normalize(Vector3CrossProduct(n2_edge1, n2_edge2));
+            // Add normals for second triangle vertices
+            normals.push_back(normal2);
+            normals.push_back(normal2);
+            normals.push_back(normal2);
             
             // Generate side faces (walls) where there are height differences
             // Calculate UV coordinates for side faces
@@ -197,121 +207,133 @@ void VoxelGrid::generateMesh() {
             float sideUMax = (float)(atlas.sideUOffset + atlas.width) / atlasWidth;
             float sideVMax = (float)(atlas.sideVOffset + atlas.height) / atlasHeight;
             
-            // Check each edge for height differences and generate wall faces
+            // Check each edge for height differences and generate wall faces only where needed
             
-            // Edge 0->1 (front edge)
-            if (t.tileHeight[0] != t.tileHeight[1]) {
-                float minHeight = std::min(t.tileHeight[0], t.tileHeight[1]);
-                Vector3 w0 = {(float)x,     minHeight, (float)y};
-                Vector3 w1 = {(float)x + 1, minHeight, (float)y};
-                
-                // Wall face
-                vertices.push_back(v0);
-                vertices.push_back(w0);
-                vertices.push_back(w1);
-                vertices.push_back(v0);
-                vertices.push_back(w1);
-                vertices.push_back(v1);
-                
-                // Side texture coordinates
-                texcoords.push_back(Vector2{sideUMin, sideVMin});
-                texcoords.push_back(Vector2{sideUMin, sideVMax});
-                texcoords.push_back(Vector2{sideUMax, sideVMax});
-                texcoords.push_back(Vector2{sideUMin, sideVMin});
-                texcoords.push_back(Vector2{sideUMax, sideVMax});
-                texcoords.push_back(Vector2{sideUMax, sideVMin});
-                
-                // Wall normal (facing negative Z)
-                Vector3 wallNormal = {0, 0, -1};
-                for(int i = 0; i < 6; i++) {
-                    normals.push_back(wallNormal);
+            // Edge 0->1 (front edge) - check neighbor tile at y-1
+            if (y > 0) {
+                tile neighborTile = getVoxel(x, y - 1);
+                // Create wall if this tile's edge is higher than neighbor's opposite edge
+                if (t.tileHeight[0] > neighborTile.tileHeight[3] || t.tileHeight[1] > neighborTile.tileHeight[2]) {
+                    Vector3 w0 = {(float)x,     (float)neighborTile.tileHeight[3], (float)y};
+                    Vector3 w1 = {(float)x + 1, (float)neighborTile.tileHeight[2], (float)y};
+                    
+                    // Wall face (corrected winding order)
+                    vertices.push_back(w1);
+                    vertices.push_back(w0);
+                    vertices.push_back(v0);
+                    vertices.push_back(v1);
+                    vertices.push_back(w1);
+                    vertices.push_back(v0);
+                    
+                    // Side texture coordinates
+                    texcoords.push_back(Vector2{sideUMin, sideVMin});
+                    texcoords.push_back(Vector2{sideUMin, sideVMax});
+                    texcoords.push_back(Vector2{sideUMax, sideVMax});
+                    texcoords.push_back(Vector2{sideUMin, sideVMin});
+                    texcoords.push_back(Vector2{sideUMax, sideVMax});
+                    texcoords.push_back(Vector2{sideUMax, sideVMin});
+                    
+                    // Wall normal (facing negative Z)
+                    Vector3 wallNormal = {0, 0, 1};
+                    for(int i = 0; i < 6; i++) {
+                        normals.push_back(wallNormal);
+                    }
                 }
             }
             
-            // Edge 1->2 (right edge)
-            if (t.tileHeight[1] != t.tileHeight[2]) {
-                float minHeight = std::min(t.tileHeight[1], t.tileHeight[2]);
-                Vector3 w1 = {(float)x + 1, minHeight, (float)y};
-                Vector3 w2 = {(float)x + 1, minHeight, (float)y + 1};
-                
-                // Wall face
-                vertices.push_back(v1);
-                vertices.push_back(w1);
-                vertices.push_back(w2);
-                vertices.push_back(v1);
-                vertices.push_back(w2);
-                vertices.push_back(v2);
-                
-                // Side texture coordinates
-                texcoords.push_back(Vector2{sideUMin, sideVMin});
-                texcoords.push_back(Vector2{sideUMin, sideVMax});
-                texcoords.push_back(Vector2{sideUMax, sideVMax});
-                texcoords.push_back(Vector2{sideUMin, sideVMin});
-                texcoords.push_back(Vector2{sideUMax, sideVMax});
-                texcoords.push_back(Vector2{sideUMax, sideVMin});
-                
-                // Wall normal (facing positive X)
-                Vector3 wallNormal = {1, 0, 0};
-                for(int i = 0; i < 6; i++) {
-                    normals.push_back(wallNormal);
+            // Edge 1->2 (right edge) - check neighbor tile at x+1
+            if (x < width - 1) {
+                tile neighborTile = getVoxel(x + 1, y);
+                // Create wall if this tile's edge is higher than neighbor's opposite edge
+                if (t.tileHeight[1] > neighborTile.tileHeight[0] || t.tileHeight[2] > neighborTile.tileHeight[3]) {
+                    Vector3 w1 = {(float)x + 1, (float)neighborTile.tileHeight[0], (float)y};
+                    Vector3 w2 = {(float)x + 1, (float)neighborTile.tileHeight[3], (float)y + 1};
+                    
+                    // Wall face (corrected winding order)
+                    vertices.push_back(v1);
+                    vertices.push_back(v2);
+                    vertices.push_back(w2);
+                    vertices.push_back(v1);
+                    vertices.push_back(w2);
+                    vertices.push_back(w1);
+                    
+                    // Side texture coordinates
+                    texcoords.push_back(Vector2{sideUMin, sideVMin});
+                    texcoords.push_back(Vector2{sideUMax, sideVMin});
+                    texcoords.push_back(Vector2{sideUMax, sideVMax});
+                    texcoords.push_back(Vector2{sideUMin, sideVMin});
+                    texcoords.push_back(Vector2{sideUMax, sideVMax});
+                    texcoords.push_back(Vector2{sideUMin, sideVMax});
+                    
+                    // Wall normal (facing positive X)
+                    Vector3 wallNormal = {-1, 0, 0};
+                    for(int i = 0; i < 6; i++) {
+                        normals.push_back(wallNormal);
+                    }
                 }
             }
             
-            // Edge 2->3 (back edge)
-            if (t.tileHeight[2] != t.tileHeight[3]) {
-                float minHeight = std::min(t.tileHeight[2], t.tileHeight[3]);
-                Vector3 w2 = {(float)x + 1, minHeight, (float)y + 1};
-                Vector3 w3 = {(float)x,     minHeight, (float)y + 1};
-                
-                // Wall face
-                vertices.push_back(v2);
-                vertices.push_back(w2);
-                vertices.push_back(w3);
-                vertices.push_back(v2);
-                vertices.push_back(w3);
-                vertices.push_back(v3);
-                
-                // Side texture coordinates
-                texcoords.push_back(Vector2{sideUMin, sideVMin});
-                texcoords.push_back(Vector2{sideUMin, sideVMax});
-                texcoords.push_back(Vector2{sideUMax, sideVMax});
-                texcoords.push_back(Vector2{sideUMin, sideVMin});
-                texcoords.push_back(Vector2{sideUMax, sideVMax});
-                texcoords.push_back(Vector2{sideUMax, sideVMin});
-                
-                // Wall normal (facing positive Z)
-                Vector3 wallNormal = {0, 0, 1};
-                for(int i = 0; i < 6; i++) {
-                    normals.push_back(wallNormal);
+            // Edge 2->3 (back edge) - check neighbor tile at y+1
+            if (y < height - 1) {
+                tile neighborTile = getVoxel(x, y + 1);
+                // Create wall if this tile's edge is higher than neighbor's opposite edge
+                if (t.tileHeight[2] > neighborTile.tileHeight[1] || t.tileHeight[3] > neighborTile.tileHeight[0]) {
+                    Vector3 w2 = {(float)x + 1, (float)neighborTile.tileHeight[1], (float)y + 1};
+                    Vector3 w3 = {(float)x,     (float)neighborTile.tileHeight[0], (float)y + 1};
+                    
+                    // Wall face (corrected winding order)
+                    vertices.push_back(v2);
+                    vertices.push_back(v3);
+                    vertices.push_back(w3);
+                    vertices.push_back(v2);
+                    vertices.push_back(w3);
+                    vertices.push_back(w2);
+                    
+                    // Side texture coordinates
+                    texcoords.push_back(Vector2{sideUMin, sideVMin});
+                    texcoords.push_back(Vector2{sideUMax, sideVMin});
+                    texcoords.push_back(Vector2{sideUMax, sideVMax});
+                    texcoords.push_back(Vector2{sideUMin, sideVMin});
+                    texcoords.push_back(Vector2{sideUMax, sideVMax});
+                    texcoords.push_back(Vector2{sideUMin, sideVMax});
+                    
+                    // Wall normal (facing positive Z)
+                    Vector3 wallNormal = {0, 0, -1};
+                    for(int i = 0; i < 6; i++) {
+                        normals.push_back(wallNormal);
+                    }
                 }
             }
             
-            // Edge 3->0 (left edge)
-            if (t.tileHeight[3] != t.tileHeight[0]) {
-                float minHeight = std::min(t.tileHeight[3], t.tileHeight[0]);
-                Vector3 w3 = {(float)x,     minHeight, (float)y + 1};
-                Vector3 w0 = {(float)x,     minHeight, (float)y};
-                
-                // Wall face
-                vertices.push_back(v3);
-                vertices.push_back(w3);
-                vertices.push_back(w0);
-                vertices.push_back(v3);
-                vertices.push_back(w0);
-                vertices.push_back(v0);
-                
-                // Side texture coordinates
-                texcoords.push_back(Vector2{sideUMin, sideVMin});
-                texcoords.push_back(Vector2{sideUMin, sideVMax});
-                texcoords.push_back(Vector2{sideUMax, sideVMax});
-                texcoords.push_back(Vector2{sideUMin, sideVMin});
-                texcoords.push_back(Vector2{sideUMax, sideVMax});
-                texcoords.push_back(Vector2{sideUMax, sideVMin});
-                
-                // Wall normal (facing negative X)
-                Vector3 wallNormal = {-1, 0, 0};
-                for(int i = 0; i < 6; i++) {
-                    normals.push_back(wallNormal);
+            // Edge 3->0 (left edge) - check neighbor tile at x-1
+            if (x > 0) {
+                tile neighborTile = getVoxel(x - 1, y);
+                // Create wall if this tile's edge is higher than neighbor's opposite edge
+                if (t.tileHeight[3] > neighborTile.tileHeight[2] || t.tileHeight[0] > neighborTile.tileHeight[1]) {
+                    Vector3 w3 = {(float)x, (float)neighborTile.tileHeight[2], (float)y + 1};
+                    Vector3 w0 = {(float)x, (float)neighborTile.tileHeight[1], (float)y};
+                    
+                    // Wall face (corrected winding order)
+                    vertices.push_back(v3);
+                    vertices.push_back(w0);
+                    vertices.push_back(w3);
+                    vertices.push_back(v3);
+                    vertices.push_back(v0);
+                    vertices.push_back(w0);
+                    
+                    // Side texture coordinates
+                    texcoords.push_back(Vector2{sideUMin, sideVMin});
+                    texcoords.push_back(Vector2{sideUMax, sideVMax});
+                    texcoords.push_back(Vector2{sideUMin, sideVMax});
+                    texcoords.push_back(Vector2{sideUMin, sideVMin});
+                    texcoords.push_back(Vector2{sideUMax, sideVMin});
+                    texcoords.push_back(Vector2{sideUMax, sideVMax});
+                    
+                    // Wall normal (facing negative X)
+                    Vector3 wallNormal = {1, 0, 0};
+                    for(int i = 0; i < 6; i++) {
+                        normals.push_back(wallNormal);
+                    }
                 }
             }
         }
@@ -350,5 +372,31 @@ void VoxelGrid::generateMesh() {
     // Create model from mesh
     model = LoadModelFromMesh(mesh);
     model.materials[0].maps[MATERIAL_MAP_DIFFUSE].texture = LoadTexture("textures.png");
+    
+    // Load custom shader
+    terrainShader = LoadShader("src/terrainShader.vs", "src/terrainShader.fs");
+    
+    // Get shader uniform locations
+    sunDirectionLoc = GetShaderLocation(terrainShader, "sunDirection");
+    sunColorLoc = GetShaderLocation(terrainShader, "sunColor");
+    ambientStrengthLoc = GetShaderLocation(terrainShader, "ambientStrength");
+    ambientColorLoc = GetShaderLocation(terrainShader, "ambientColor");
+    shiftIntensityLoc = GetShaderLocation(terrainShader, "shiftIntensity");
+    shiftDisplacementLoc = GetShaderLocation(terrainShader, "shiftDisplacement");
+    
+    // Assign shader to model material
+    model.materials[0].shader = terrainShader;
 }
 
+void VoxelGrid::updateLighting(Vector3 sunDirection, Vector3 sunColor, float ambientStrength, Vector3 ambientColor, float shiftIntensity, float shiftDisplacement) {
+    // Normalize sun direction
+    sunDirection = Vector3Normalize(sunDirection);
+    
+    // Set shader uniforms
+    SetShaderValue(terrainShader, sunDirectionLoc, &sunDirection, SHADER_UNIFORM_VEC3);
+    SetShaderValue(terrainShader, sunColorLoc, &sunColor, SHADER_UNIFORM_VEC3);
+    SetShaderValue(terrainShader, ambientStrengthLoc, &ambientStrength, SHADER_UNIFORM_FLOAT);
+    SetShaderValue(terrainShader, ambientColorLoc, &ambientColor, SHADER_UNIFORM_VEC3);
+    SetShaderValue(terrainShader, shiftIntensityLoc, &shiftIntensity, SHADER_UNIFORM_FLOAT);
+    SetShaderValue(terrainShader, shiftDisplacementLoc, &shiftDisplacement, SHADER_UNIFORM_FLOAT);
+}
