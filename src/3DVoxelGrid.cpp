@@ -4,24 +4,24 @@
 #include <cmath>
 #include <raymath.h>
 
-VoxelGrid::VoxelGrid(int width, int height) {
+tileGrid::tileGrid(int width, int height) {
     this->width = width;
     this->height = height;
     grid.resize(width, std::vector<tile>(height));
 }
 
-VoxelGrid::~VoxelGrid() {
+tileGrid::~tileGrid() {
 }
 
-void VoxelGrid::setVoxel(int x, int y, tile voxel) {
-    grid[x][y] = voxel;
+void tileGrid::setTile(int x, int y, tile tile) {
+    grid[x][y] = tile;
 }
 
-tile VoxelGrid::getVoxel(int x, int y) {
+tile tileGrid::getTile(int x, int y) {
     return grid[x][y];
 }
 
-void VoxelGrid::generatePerlinTerrain(float scale, int offsetX, int offsetY, int heightCo) {
+void tileGrid::generatePerlinTerrain(float scale, int offsetX, int offsetY, int heightCo) {
     // Generate noise image with extra row/column to share corner samples between tiles
     perlinNoise = GenImagePerlinNoise(width + 1, height + 1, offsetX, offsetY, (int)scale);
     for (int x = 0; x < width; x++) {
@@ -59,20 +59,20 @@ void VoxelGrid::generatePerlinTerrain(float scale, int offsetX, int offsetY, int
             }
             // Default lighting placeholder
             t.lighting[0] = WHITE;
-            setVoxel(x, y, t);
+            setTile(x, y, t);
         }
     }
     UnloadImage(perlinNoise);
 }
 
 // Ray-based tile picking: intersect ray with mesh of tile surfaces
-Vector3 VoxelGrid::getVoxelIndexDDA(Ray ray) {
+Vector3 tileGrid::getTileIndexDDA(Ray ray) {
     Vector3 bestHitPos = { -1, -1, -1 };
     float minDistance = FLT_MAX;
     // Iterate over all tiles
     for (int x = 0; x < width; ++x) {
         for (int y = 0; y < height; ++y) {
-            tile t = getVoxel(x, y);
+            tile t = getTile(x, y);
             // Build tile surface triangles
             Vector3 v0 = { (float)x,     (float)t.tileHeight[0], (float)y     };
             Vector3 v1 = { (float)x + 1, (float)t.tileHeight[1], (float)y     };
@@ -84,7 +84,7 @@ Vector3 VoxelGrid::getVoxelIndexDDA(Ray ray) {
                 minDistance = hit.distance;
                 bestHitPos = hit.point;
             }
-            // Check collision for second triangle
+            // Check col-   lision for second triangle
             hit = GetRayCollisionTriangle(ray, v0, v2, v3);
             if (hit.hit && hit.distance < minDistance) {
                 minDistance = hit.distance;
@@ -92,13 +92,21 @@ Vector3 VoxelGrid::getVoxelIndexDDA(Ray ray) {
             }
         }
     }
+    // If we hit a tile, convert world hit position to grid indices
+    if (bestHitPos.x >= 0) {
+        int ix = (int)std::floor(bestHitPos.x);
+        int iy = (int)std::floor(bestHitPos.z);
+        // Return discrete tile indices (z unused)
+        return Vector3{ (float)ix, (float)iy, 0.0f };
+    }
+    // No hit: return original sentinel
     return bestHitPos;
 }
 
-void VoxelGrid::renderWires() {
+void tileGrid::renderWires() {
     for (int x = 0; x < width; x++) {
         for (int y = 0; y < height; y++) {
-            tile t = getVoxel(x, y);
+            tile t = getTile(x, y);
             // Define the four corner vertices in 3D space
             Vector3 v0 = {(float)x,     (float)t.tileHeight[0], (float)y};
             Vector3 v1 = {(float)x + 1, (float)t.tileHeight[1], (float)y};
@@ -112,10 +120,10 @@ void VoxelGrid::renderWires() {
     }
 }
 
-void VoxelGrid::renderSurface() {
+void tileGrid::renderSurface() {
     for (int x = 0; x < width; x++) {
         for (int y = 0; y < height; y++) {
-            tile t = getVoxel(x, y);
+            tile t = getTile(x, y);
             Vector3 v0 = {(float)x,     (float)t.tileHeight[0], (float)y};
             Vector3 v1 = {(float)x + 1, (float)t.tileHeight[1], (float)y};
             Vector3 v2 = {(float)x + 1, (float)t.tileHeight[2], (float)y + 1};
@@ -127,11 +135,11 @@ void VoxelGrid::renderSurface() {
     }
 }
 
-unsigned int VoxelGrid::getWidth() { return width; }
-unsigned int VoxelGrid::getHeight() { return height; }
-unsigned int VoxelGrid::getDepth() { return depth; }
+unsigned int tileGrid::getWidth() { return width; }
+unsigned int tileGrid::getHeight() { return height; }
+unsigned int tileGrid::getDepth() { return depth; }
 
-void VoxelGrid::generateMesh() {
+void tileGrid::generateMesh() {
     // Assuming texture atlas dimensions (you may want to make these configurable)
     const float atlasWidth = 64.0f;  // Total atlas width in pixels
     const float atlasHeight = 16.0f; // Total atlas height in pixels
@@ -142,7 +150,7 @@ void VoxelGrid::generateMesh() {
 
     for(int x = 0; x < width; x++) {
         for(int y = 0; y < height; y++) {
-            tile t = getVoxel(x, y);
+            tile t = getTile(x, y);
             
             // Skip air tiles
             if(t.type == AIR) continue;
@@ -211,7 +219,7 @@ void VoxelGrid::generateMesh() {
             
             // Edge 0->1 (front edge) - check neighbor tile at y-1
             if (y > 0) {
-                tile neighborTile = getVoxel(x, y - 1);
+                tile neighborTile = getTile(x, y - 1);
                 // Create wall if this tile's edge is higher than neighbor's opposite edge
                 if (t.tileHeight[0] > neighborTile.tileHeight[3] || t.tileHeight[1] > neighborTile.tileHeight[2]) {
                     Vector3 w0 = {(float)x,     (float)neighborTile.tileHeight[3], (float)y};
@@ -243,7 +251,7 @@ void VoxelGrid::generateMesh() {
             
             // Edge 1->2 (right edge) - check neighbor tile at x+1
             if (x < width - 1) {
-                tile neighborTile = getVoxel(x + 1, y);
+                tile neighborTile = getTile(x + 1, y);
                 // Create wall if this tile's edge is higher than neighbor's opposite edge
                 if (t.tileHeight[1] > neighborTile.tileHeight[0] || t.tileHeight[2] > neighborTile.tileHeight[3]) {
                     Vector3 w1 = {(float)x + 1, (float)neighborTile.tileHeight[0], (float)y};
@@ -275,7 +283,7 @@ void VoxelGrid::generateMesh() {
             
             // Edge 2->3 (back edge) - check neighbor tile at y+1
             if (y < height - 1) {
-                tile neighborTile = getVoxel(x, y + 1);
+                tile neighborTile = getTile(x, y + 1);
                 // Create wall if this tile's edge is higher than neighbor's opposite edge
                 if (t.tileHeight[2] > neighborTile.tileHeight[1] || t.tileHeight[3] > neighborTile.tileHeight[0]) {
                     Vector3 w2 = {(float)x + 1, (float)neighborTile.tileHeight[1], (float)y + 1};
@@ -307,7 +315,7 @@ void VoxelGrid::generateMesh() {
             
             // Edge 3->0 (left edge) - check neighbor tile at x-1
             if (x > 0) {
-                tile neighborTile = getVoxel(x - 1, y);
+                tile neighborTile = getTile(x - 1, y);
                 // Create wall if this tile's edge is higher than neighbor's opposite edge
                 if (t.tileHeight[3] > neighborTile.tileHeight[2] || t.tileHeight[0] > neighborTile.tileHeight[1]) {
                     Vector3 w3 = {(float)x, (float)neighborTile.tileHeight[2], (float)y + 1};
@@ -366,29 +374,29 @@ void VoxelGrid::generateMesh() {
         mesh.normals[i * 3 + 2] = normals[i].z;
     }
     
-    // Upload mesh to GPU
-    UploadMesh(&mesh, false);
+    UploadMesh(&mesh, true);
     
     // Create model from mesh
     model = LoadModelFromMesh(mesh);
     model.materials[0].maps[MATERIAL_MAP_DIFFUSE].texture = LoadTexture("textures.png");
     
-    // Load custom shader
-    terrainShader = LoadShader("src/terrainShader.vs", "src/terrainShader.fs");
-    
-    // Get shader uniform locations
-    sunDirectionLoc = GetShaderLocation(terrainShader, "sunDirection");
-    sunColorLoc = GetShaderLocation(terrainShader, "sunColor");
-    ambientStrengthLoc = GetShaderLocation(terrainShader, "ambientStrength");
-    ambientColorLoc = GetShaderLocation(terrainShader, "ambientColor");
-    shiftIntensityLoc = GetShaderLocation(terrainShader, "shiftIntensity");
-    shiftDisplacementLoc = GetShaderLocation(terrainShader, "shiftDisplacement");
-    
-    // Assign shader to model material
+    if (meshGenerated == false) {
+        terrainShader = LoadShader("src/terrainShader.vs", "src/terrainShader.fs");
+        // Load custom shader
+        sunDirectionLoc = GetShaderLocation(terrainShader, "sunDirection");
+        sunColorLoc = GetShaderLocation(terrainShader, "sunColor");
+        ambientStrengthLoc = GetShaderLocation(terrainShader, "ambientStrength");
+        ambientColorLoc = GetShaderLocation(terrainShader, "ambientColor");
+        shiftIntensityLoc = GetShaderLocation(terrainShader, "shiftIntensity");
+        shiftDisplacementLoc = GetShaderLocation(terrainShader, "shiftDisplacement");
+        
+        // Assign shader to model material
+        meshGenerated = true;
+    }
     model.materials[0].shader = terrainShader;
 }
 
-void VoxelGrid::updateLighting(Vector3 sunDirection, Vector3 sunColor, float ambientStrength, Vector3 ambientColor, float shiftIntensity, float shiftDisplacement) {
+void tileGrid::updateLighting(Vector3 sunDirection, Vector3 sunColor, float ambientStrength, Vector3 ambientColor, float shiftIntensity, float shiftDisplacement) {
     // Normalize sun direction
     sunDirection = Vector3Normalize(sunDirection);
     

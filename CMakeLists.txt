@@ -24,7 +24,9 @@ set(SOURCES
     src/main.cpp
     src/3DVoxelGrid.cpp
     #src/marchingCubes.cpp
-    #src/chunk.cpp
+    src/chunk.cpp
+    src/machine.cpp
+    src/resourceManager.cpp
 )
 
 # Add include directories

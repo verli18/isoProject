@@ -10,13 +10,13 @@ struct tile{
 
 };
 
-class VoxelGrid {
+class tileGrid {
     public:
-        VoxelGrid(int width, int height);
-        ~VoxelGrid();
-        void setVoxel(int x, int y, tile voxel);
+        tileGrid(int width, int height);
+        ~tileGrid();
+        void setTile(int x, int y, tile voxel);
         void generatePerlinTerrain(float scale, int offsetX, int offsetY, int heightCo);
-        tile getVoxel(int x, int y);
+        tile getTile(int x, int y);
         void renderSurface();
         void renderWires();
 
@@ -29,7 +29,7 @@ class VoxelGrid {
         unsigned int getHeight();
         unsigned int getDepth();
 
-        Vector3 getVoxelIndexDDA(Ray ray);
+        Vector3 getTileIndexDDA(Ray ray);
 
         Model model;
         Shader terrainShader;
@@ -42,6 +42,7 @@ class VoxelGrid {
         float shiftIntensityLoc;
         float shiftDisplacementLoc;
     private:
+        bool meshGenerated = false;
         Image perlinNoise;
         int width;
         int height;
