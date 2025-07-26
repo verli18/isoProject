@@ -4,6 +4,7 @@
 bool resourceManager::initialized = false;
 std::unordered_map<machineType, Model> resourceManager::machineModels;
 std::unordered_map<machineType, Texture2D> resourceManager::machineTextures;
+Shader resourceManager::terrainShader;
 std::unordered_map<machineType, std::string> resourceManager::modelPaths = {
     { CONVEYORMK1, "assets/models/conveyor_mk1.glb" },
     { DRILLMK1,    "assets/models/drill_mk1.glb" }
@@ -16,15 +17,22 @@ std::unordered_map<machineType, std::string> resourceManager::texturePaths = {
 void resourceManager::initialize() {
     if (initialized) return;
 
+    // Load shader first
+    terrainShader = LoadShader("assets/shaders/terrainShader.vs", 
+                              "assets/shaders/terrainShader.fs");
+
     for (auto& entry : modelPaths) {
         machineType type = entry.first;
         const std::string& path = entry.second;
         Model model = LoadModel(path.c_str());
         Texture2D texture = LoadTexture(texturePaths[type].c_str());
-        // Apply texture to model's first material
+        
+        // Apply texture and shader to model's materials
         if (model.materialCount > 0) {
             model.materials[0].maps[MATERIAL_MAP_DIFFUSE].texture = texture;
+            model.materials[0].shader = terrainShader;
         }
+        
         machineModels[type] = model;
         machineTextures[type] = texture;
     }
@@ -41,6 +49,8 @@ void resourceManager::cleanup() {
     for (auto& entry : machineTextures) {
         UnloadTexture(entry.second);
     }
+    
+    UnloadShader(terrainShader);
 
     machineModels.clear();
     machineTextures.clear();
@@ -49,9 +59,13 @@ void resourceManager::cleanup() {
 }
 
 Model& resourceManager::getMachineModel(machineType type) {
-    return machineModels[type];
+    return machineModels.at(type);
 }
 
 Texture2D& resourceManager::getMachineTexture(machineType type) {
     return machineTextures[type];
+}
+
+Shader& resourceManager::getShader() {
+    return terrainShader;
 }

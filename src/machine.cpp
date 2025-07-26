@@ -1,5 +1,5 @@
-#include "../include/machines.hpp"
-// Initialize static ID counter
+#include "../include/resourceManager.hpp"
+
 int machine::nextID = 0;
 
 machine::machine(machineType type, Vector3 position) {
@@ -40,4 +40,26 @@ machineManager::machineManager() {
 
 machineManager::~machineManager() {
 }
+
+drillMk1::drillMk1(Vector3 position) : machine(DRILLMK1, position) {}
+drillMk1::~drillMk1() {}
+
+void drillMk1::update() {
+
+}
+
+void drillMk1::render() {
+    DrawModel(resourceManager::getMachineModel(type), position, 1.0f, WHITE);
+}
+
+void conveyorMk1::update() {
+
+}
+
+void conveyorMk1::render() {
+    DrawModel(resourceManager::getMachineModel(type), position, 1.0f, WHITE);
+}
+
+conveyorMk1::conveyorMk1(Vector3 position) : machine(CONVEYORMK1, position) {}
+
 

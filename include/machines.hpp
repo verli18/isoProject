@@ -66,6 +66,10 @@ class machineManager {
     public:
         machineManager();
         ~machineManager();
+
+        // Non-copyable
+        machineManager(const machineManager&) = delete;
+        machineManager& operator=(const machineManager&) = delete;
     
     void update();
     void render();

@@ -27,6 +27,7 @@ set(SOURCES
     src/chunk.cpp
     src/machine.cpp
     src/resourceManager.cpp
+    src/gamestate.cpp
 )
 
 # Add include directories

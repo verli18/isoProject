@@ -381,7 +381,7 @@ void tileGrid::generateMesh() {
     model.materials[0].maps[MATERIAL_MAP_DIFFUSE].texture = LoadTexture("textures.png");
     
     if (meshGenerated == false) {
-        terrainShader = LoadShader("src/terrainShader.vs", "src/terrainShader.fs");
+        terrainShader = LoadShader("assets/shaders/terrainShader.vs", "assets/shaders/terrainShader.fs");
         // Load custom shader
         sunDirectionLoc = GetShaderLocation(terrainShader, "sunDirection");
         sunColorLoc = GetShaderLocation(terrainShader, "sunColor");
