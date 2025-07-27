@@ -29,12 +29,13 @@ class sun{
 class gameState{
     public:
     sun sunData;
-    Camera3D camera = { {32.0f, 32.0f, 32.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 1.0f, 0.0f}, 20.0f, CAMERA_ORTHOGRAPHIC};
+    Camera3D camera = { {32.0f, 32.0f, 32.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 1.0f, 0.0f}, 20.0f, CAMERA_PERSPECTIVE};
     bool showGrid = true;
     gameState() : chunk(0, 0){
         init();
     }
 
+    bool buildMode = false;
     void init();
     void update();
     void render();

@@ -1,12 +1,16 @@
 #include <vector>
 #include <raylib.h>
 
+class machine;
 
 struct tile{
     //alright we're scrapping the marching cubes shit, that is way too annoying to deal with and honestly we won't even need layers of terrain so no use for that, let's use collumns now
     char type; //0 for air
     float tileHeight[4]; //one for each corner
     Color lighting[4];
+    
+    // Machine data
+    machine* occupyingMachine = nullptr; // Pointer to machine on this tile
 
 };
 
@@ -30,6 +34,12 @@ class tileGrid {
         unsigned int getDepth();
 
         Vector3 getTileIndexDDA(Ray ray);
+
+        // Machine management
+        bool placeMachine(int x, int y, machine* machinePtr);
+        void removeMachine(int x, int y);
+        machine* getMachineAt(int x, int y);
+        bool isOccupied(int x, int y);
 
         Model model;
         Shader terrainShader;

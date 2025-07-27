@@ -14,12 +14,22 @@ std::unordered_map<machineType, std::string> resourceManager::texturePaths = {
     { DRILLMK1,    "assets/textures/drill_mk1.png" }
 };
 
+std::unordered_map<itemType, itemTextureUVs> resourceManager::itemTextureUVsMap = {
+    {IRON_ORE, {0, 0, 16, 16}},
+    {COPPER_ORE, {16, 0, 16, 16}}
+};
+
+Texture2D resourceManager::itemTexture;
+
 void resourceManager::initialize() {
     if (initialized) return;
 
     // Load shader first
     terrainShader = LoadShader("assets/shaders/terrainShader.vs", 
                               "assets/shaders/terrainShader.fs");
+
+    // Load item texture atlas
+    itemTexture = LoadTexture("assets/textures/items.png");
 
     for (auto& entry : modelPaths) {
         machineType type = entry.first;
@@ -50,6 +60,7 @@ void resourceManager::cleanup() {
         UnloadTexture(entry.second);
     }
     
+    UnloadTexture(itemTexture);
     UnloadShader(terrainShader);
 
     machineModels.clear();
@@ -68,4 +79,18 @@ Texture2D& resourceManager::getMachineTexture(machineType type) {
 
 Shader& resourceManager::getShader() {
     return terrainShader;
+}
+
+Texture2D& resourceManager::getItemTexture(itemType type) {
+    return itemTexture;
+}
+
+Rectangle resourceManager::getItemTextureUV(itemType type) {
+    auto it = itemTextureUVsMap.find(type);
+    if (it != itemTextureUVsMap.end()) {
+        const itemTextureUVs& uvs = it->second;
+        return Rectangle{(float)uvs.Uoffset, (float)uvs.Voffset, (float)uvs.Usize, (float)uvs.Vsize};
+    }
+    // Return default UV if not found
+    return Rectangle{0, 0, 16, 16};
 }

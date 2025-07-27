@@ -21,6 +21,26 @@ tile tileGrid::getTile(int x, int y) {
     return grid[x][y];
 }
 
+bool tileGrid::placeMachine(int x, int y, machine* machinePtr) {
+    // Check if coordinates are valid
+    if (x < 0 || x >= width || y < 0 || y >= height) {
+        return false;
+    }
+    
+    // Check if tile is already occupied
+    if (grid[y][x].occupyingMachine != nullptr) {
+        return false;
+    }
+    
+    // Place the machine
+    grid[y][x].occupyingMachine = machinePtr;
+    return true;
+}
+
+machine* tileGrid::getMachineAt(int x, int y) {
+    return grid[y][x].occupyingMachine;
+}
+
 void tileGrid::generatePerlinTerrain(float scale, int offsetX, int offsetY, int heightCo) {
     // Generate noise image with extra row/column to share corner samples between tiles
     perlinNoise = GenImagePerlinNoise(width + 1, height + 1, offsetX, offsetY, (int)scale);

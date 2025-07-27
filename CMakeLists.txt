@@ -28,10 +28,19 @@ set(SOURCES
     src/machine.cpp
     src/resourceManager.cpp
     src/gamestate.cpp
+    src/item.cpp
+    libs/rlImGui/rlImGui.cpp
+    libs/rlImGui/imgui/imgui.cpp
+    libs/rlImGui/imgui/imgui_widgets.cpp
+    libs/rlImGui/imgui/imgui_draw.cpp
+    libs/rlImGui/imgui/imgui_tables.cpp
+    libs/rlImGui/imgui/imgui_demo.cpp
 )
 
 # Add include directories
 include_directories(${CMAKE_SOURCE_DIR}/include)
+include_directories(${CMAKE_SOURCE_DIR}/libs/rlImGui)
+include_directories(${CMAKE_SOURCE_DIR}/libs/rlImGui/imgui)
 
 # Create executable
 add_executable(IsometricGame ${SOURCES})

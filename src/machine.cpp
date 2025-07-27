@@ -31,6 +31,7 @@ void machineManager::render() {
 }
 
 void machineManager::addMachine(std::unique_ptr<machine> machine) {
+    previous = machine.get(); // Store pointer before moving
     machines.push_back(std::move(machine));
 }
 
@@ -49,17 +50,32 @@ void drillMk1::update() {
 }
 
 void drillMk1::render() {
-    DrawModel(resourceManager::getMachineModel(type), position, 1.0f, WHITE);
+    DrawModel(resourceManager::getMachineModel(type), {position.x+0.5f, position.y, position.z}, 0.5f, WHITE);
 }
+
+conveyorMk1::conveyorMk1(Vector3 position) : machine(CONVEYORMK1, position) {}
 
 void conveyorMk1::update() {
 
 }
 
 void conveyorMk1::render() {
-    DrawModel(resourceManager::getMachineModel(type), position, 1.0f, WHITE);
+    DrawModel(resourceManager::getMachineModel(type), {position.x+0.5f, position.y, position.z+0.5f}, 0.5f, WHITE);
 }
 
-conveyorMk1::conveyorMk1(Vector3 position) : machine(CONVEYORMK1, position) {}
+droppedItem::droppedItem(Vector3 position, itemType type) : machine(ITEM, position) {
+    itemInstance.type = type;
+    itemInstance.quantity = 1; // Assuming default quantity of 1 for dropped items
+}
+droppedItem::~droppedItem() {}
+
+void droppedItem::update() {
+}
+
+void droppedItem::render() {
+    Texture2D texture = resourceManager::getItemTexture(static_cast<itemType>(itemInstance.type));
+    Rectangle sourceRect = resourceManager::getItemTextureUV(static_cast<itemType>(itemInstance.type));
+    DrawBillboardRec(resourceManager::camera, texture, sourceRect, position, Vector2{0.5f, 0.5f}, WHITE);
+}
 
 

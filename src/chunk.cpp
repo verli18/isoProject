@@ -23,7 +23,7 @@ void Chunk::renderWires() {
 }
 
 void Chunk::generateMesh() {
-    tiles.generatePerlinTerrain(1.0f, chunkX, chunkY, 50);
+    tiles.generatePerlinTerrain(1.0f, chunkX, chunkY, 18);
     tiles.generateMesh();
     model = tiles.model;
     meshGenerated = true;

@@ -2,10 +2,12 @@
 #include <memory>
 #include <raylib.h>
 #include <vector>
+#include "item.hpp"
 
 enum machineType {
     CONVEYORMK1,
-    DRILLMK1
+    DRILLMK1,
+    ITEM
 };
 
 enum animFrames {
@@ -62,6 +64,17 @@ class conveyorMk1 : public machine {
     private:
 };
 
+class droppedItem : public machine {
+    public:
+        droppedItem(Vector3 position, itemType type);
+        ~droppedItem();
+
+        item itemInstance;
+    void update() override;
+    void render() override;
+    private:
+};
+
 class machineManager {
     public:
         machineManager();
@@ -77,6 +90,7 @@ class machineManager {
     void addMachine(std::unique_ptr<machine> machine);
     void removeMachine(int ID);
 
+    machine* previous;
     private:
     std::vector<std::unique_ptr<machine>> machines;
 };
