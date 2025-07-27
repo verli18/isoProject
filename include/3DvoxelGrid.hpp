@@ -1,34 +1,61 @@
 #include <vector>
 #include <raylib.h>
-#include <cmath>
 
+class machine;
 
-struct Voxels{
+struct tile{
+    //alright we're scrapping the marching cubes shit, that is way too annoying to deal with and honestly we won't even need layers of terrain so no use for that, let's use collumns now
     char type; //0 for air
-    Color lighting;
-    bool isTerrain;
-    bool isMachine;
+    float tileHeight[4]; //one for each corner
+    Color lighting[4];
+    
+    // Machine data
+    machine* occupyingMachine = nullptr; // Pointer to machine on this tile
+
 };
 
-class VoxelGrid {
+class tileGrid {
     public:
-        VoxelGrid(int width, int height, int depth);
-        ~VoxelGrid();
-        void setVoxel(int x, int y, int z, Voxels voxel);
-        void generatePerlinTerrain(float scale, int offsetX, int offsetY);
-        Voxels getVoxel(int x, int y, int z);
-        void render();
+        tileGrid(int width, int height);
+        ~tileGrid();
+        void setTile(int x, int y, tile voxel);
+        void generatePerlinTerrain(float scale, int offsetX, int offsetY, int heightCo);
+        tile getTile(int x, int y);
+        void renderSurface();
+        void renderWires();
+
+        void generateMesh();
+        void updateLighting(Vector3 sunDirection, Vector3 sunColor, float ambientStrength, Vector3 ambientColor, float shiftIntensity, float shiftDisplacement);
+
+        Mesh mesh;
 
         unsigned int getWidth();
         unsigned int getHeight();
         unsigned int getDepth();
 
-        Vector3 getVoxelIndexDDA(Ray ray);
+        Vector3 getTileIndexDDA(Ray ray);
 
+        // Machine management
+        bool placeMachine(int x, int y, machine* machinePtr);
+        void removeMachine(int x, int y);
+        machine* getMachineAt(int x, int y);
+        bool isOccupied(int x, int y);
+
+        Model model;
+        Shader terrainShader;
+        
+        // Lighting uniforms
+        int sunDirectionLoc;
+        int sunColorLoc;
+        int ambientStrengthLoc;
+        int ambientColorLoc;
+        float shiftIntensityLoc;
+        float shiftDisplacementLoc;
     private:
+        bool meshGenerated = false;
         Image perlinNoise;
         int width;
         int height;
         int depth;
-        std::vector<std::vector<std::vector<Voxels>>> grid;
+        std::vector<std::vector<tile>> grid;
 };

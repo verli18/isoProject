@@ -23,12 +23,24 @@ include_directories(${RAYLIB_INCLUDE_DIRS})
 set(SOURCES
     src/main.cpp
     src/3DVoxelGrid.cpp
-    src/marchingCubes.cpp
+    #src/marchingCubes.cpp
     src/chunk.cpp
+    src/machine.cpp
+    src/resourceManager.cpp
+    src/gamestate.cpp
+    src/item.cpp
+    libs/rlImGui/rlImGui.cpp
+    libs/rlImGui/imgui/imgui.cpp
+    libs/rlImGui/imgui/imgui_widgets.cpp
+    libs/rlImGui/imgui/imgui_draw.cpp
+    libs/rlImGui/imgui/imgui_tables.cpp
+    libs/rlImGui/imgui/imgui_demo.cpp
 )
 
 # Add include directories
 include_directories(${CMAKE_SOURCE_DIR}/include)
+include_directories(${CMAKE_SOURCE_DIR}/libs/rlImGui)
+include_directories(${CMAKE_SOURCE_DIR}/libs/rlImGui/imgui)
 
 # Create executable
 add_executable(IsometricGame ${SOURCES})
@@ -47,6 +59,11 @@ set_target_properties(${PROJECT_NAME} PROPERTIES
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
+
+# Copy assets to build directory
+file(COPY ${CMAKE_SOURCE_DIR}/textures.png DESTINATION ${CMAKE_BINARY_DIR})
+file(COPY ${CMAKE_SOURCE_DIR}/src/terrainShader.vs DESTINATION ${CMAKE_BINARY_DIR}/src)
+file(COPY ${CMAKE_SOURCE_DIR}/src/terrainShader.fs DESTINATION ${CMAKE_BINARY_DIR}/src)
 
 # Install target
 install(TARGETS ${PROJECT_NAME}
@@ -81,5 +98,5 @@ endif()
 if(MSVC)
     target_compile_options(${PROJECT_NAME} PRIVATE /W4 /WX)
 else()
-    target_compile_options(${PROJECT_NAME} PRIVATE -g -Wall -Wextra -Wpedantic -Werror)
+    target_compile_options(${PROJECT_NAME} PRIVATE -g -Wall -Wextra -Wpedantic)
 endif()

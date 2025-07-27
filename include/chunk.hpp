@@ -1,10 +1,10 @@
-#include "marchingCubes.hpp"
+#include "3DvoxelGrid.hpp"
 
-#define CHUNKSIZE 16
+#define CHUNKSIZE 32
 
 class Chunk {
     public:
-        Chunk(int x, int y, int z);
+        Chunk(int x, int y);
         ~Chunk();
         void generateMesh();
         void updateMesh();
@@ -12,12 +12,11 @@ class Chunk {
         void render();
         void renderWires();
 
-        VoxelGrid voxelGrid;
-        MarchingCubes marchingCubes;
+        tileGrid tiles;
         Texture2D textureAtlas;
         Model model;
         Mesh mesh;
         private:
-        int chunkX, chunkY, chunkZ;
+        int chunkX, chunkY;
         bool meshGenerated;
 };
