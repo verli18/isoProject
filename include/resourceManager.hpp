@@ -6,6 +6,26 @@
 #include <string>
 #include "machines.hpp"
 
+class sun{
+    public:
+    
+    Vector3 sunDirection;
+    Vector3 sunColor;
+    float ambientStrength;
+    Vector3 ambientColor;
+    float shiftIntensity;
+    float shiftDisplacement;
+
+    sun(){
+        sunDirection = {0.59f, -1.0f, -0.8f};  // Direction from sun to ground
+        sunColor = {1.0f, 0.9f, 0.7f};       // Warm sun color
+        ambientStrength = 0.5f;                 // Ambient light strength
+        ambientColor = {0.4f, 0.5f, 0.8f};   // Cool ambient color
+        shiftIntensity = -0.10f;
+        shiftDisplacement = 1.86f;
+    }
+};
+
 class resourceManager {
 public:
     // Initialize and load all machine assets
@@ -25,6 +45,10 @@ public:
                                     float shiftIntensity, float shiftDisplacement);
 
     static Camera camera;
+    // Update terrain shader uniforms
+    static void updateTerrainLighting(Vector3 sunDirection, Vector3 sunColor,
+                                     float ambientStrength, Vector3 ambientColor,
+                                     float shiftIntensity, float shiftDisplacement);
 
 private:
     // Prevent instantiation

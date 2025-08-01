@@ -1,4 +1,4 @@
-#include "3DvoxelGrid.hpp"
+#include "tileGrid.hpp"
 
 #define CHUNKSIZE 32
 
@@ -11,6 +11,7 @@ class Chunk {
 
         void render();
         void renderWires();
+        void renderDataPoint();
 
         tileGrid tiles;
         Texture2D textureAtlas;

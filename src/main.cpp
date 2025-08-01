@@ -11,5 +11,6 @@ int main() {
         gameState.render();
 
     }
-    
+    CloseWindow();
+    exit(0);
 }

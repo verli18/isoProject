@@ -8,7 +8,9 @@ struct tile{
     char type; //0 for air
     float tileHeight[4]; //one for each corner
     Color lighting[4];
-    
+    int moisture = 0;
+    int temperature = 0;
+
     // Machine data
     machine* occupyingMachine = nullptr; // Pointer to machine on this tile
 
@@ -19,10 +21,16 @@ class tileGrid {
         tileGrid(int width, int height);
         ~tileGrid();
         void setTile(int x, int y, tile voxel);
-        void generatePerlinTerrain(float scale, int offsetX, int offsetY, int heightCo);
+        // Generate terrain with Perlin noise fractal (multiple octaves)
+        // scale: base frequency, offsetX/Y: noise seed offsets, heightCo: height coefficient
+        // octaves: number of noise layers, persistence: amplitude attenuation, lacunarity: frequency multiplier, exponent: curve shaping
+        void generatePerlinTerrain(float scale, int offsetX, int offsetY, int heightCo,
+                                   int octaves = 4, float persistence = 0.25f,
+                                   float lacunarity = 2.0f, float exponent = 1.0f);
         tile getTile(int x, int y);
         void renderSurface();
         void renderWires();
+        void renderDataPoint(int offsetX, int offsetY);
 
         void generateMesh();
         void updateLighting(Vector3 sunDirection, Vector3 sunColor, float ambientStrength, Vector3 ambientColor, float shiftIntensity, float shiftDisplacement);
@@ -42,15 +50,6 @@ class tileGrid {
         bool isOccupied(int x, int y);
 
         Model model;
-        Shader terrainShader;
-        
-        // Lighting uniforms
-        int sunDirectionLoc;
-        int sunColorLoc;
-        int ambientStrengthLoc;
-        int ambientColorLoc;
-        float shiftIntensityLoc;
-        float shiftDisplacementLoc;
     private:
         bool meshGenerated = false;
         Image perlinNoise;

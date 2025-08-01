@@ -22,6 +22,7 @@ std::unordered_map<itemType, itemTextureUVs> resourceManager::itemTextureUVsMap 
 Texture2D resourceManager::itemTexture;
 
 void resourceManager::initialize() {
+    sun sunData;
     if (initialized) return;
 
     // Load shader first
@@ -41,6 +42,14 @@ void resourceManager::initialize() {
         if (model.materialCount > 0) {
             model.materials[0].maps[MATERIAL_MAP_DIFFUSE].texture = texture;
             model.materials[0].shader = terrainShader;
+            
+            // Set initial shader values for this model
+            SetShaderValue(terrainShader, GetShaderLocation(terrainShader, "sunDirection"), &sunData.sunDirection, SHADER_UNIFORM_VEC3);
+            SetShaderValue(terrainShader, GetShaderLocation(terrainShader, "sunColor"), &sunData.sunColor, SHADER_UNIFORM_VEC3);
+            SetShaderValue(terrainShader, GetShaderLocation(terrainShader, "ambientStrength"), &sunData.ambientStrength, SHADER_UNIFORM_FLOAT);
+            SetShaderValue(terrainShader, GetShaderLocation(terrainShader, "ambientColor"), &sunData.ambientColor, SHADER_UNIFORM_VEC3);
+            SetShaderValue(terrainShader, GetShaderLocation(terrainShader, "shiftIntensity"), &sunData.shiftIntensity, SHADER_UNIFORM_FLOAT);
+            SetShaderValue(terrainShader, GetShaderLocation(terrainShader, "shiftDisplacement"), &sunData.shiftDisplacement, SHADER_UNIFORM_FLOAT);
         }
         
         machineModels[type] = model;
@@ -49,6 +58,35 @@ void resourceManager::initialize() {
 
     initialized = true;
 }
+
+// Update shader uniforms for machine models (if dynamic lighting changes needed)
+void resourceManager::updateMachineLighting(Vector3 sunDirection, Color sunColor,
+                                           float ambientStrength, Color ambientColor,
+                                           float shiftIntensity, float shiftDisplacement) {
+    // Convert Color to Vector3 for sunColor and ambientColor
+    Vector3 sunCol = { sunColor.r/255.0f, sunColor.g/255.0f, sunColor.b/255.0f };
+    Vector3 ambCol = { ambientColor.r/255.0f, ambientColor.g/255.0f, ambientColor.b/255.0f };
+    //I know, this sucks ass
+    SetShaderValue(terrainShader, GetShaderLocation(terrainShader, "sunDirection"), &sunDirection, SHADER_UNIFORM_VEC3);
+    SetShaderValue(terrainShader, GetShaderLocation(terrainShader, "sunColor"), &sunCol, SHADER_UNIFORM_VEC3);
+    SetShaderValue(terrainShader, GetShaderLocation(terrainShader, "ambientStrength"), &ambientStrength, SHADER_UNIFORM_FLOAT);
+    SetShaderValue(terrainShader, GetShaderLocation(terrainShader, "ambientColor"), &ambCol, SHADER_UNIFORM_VEC3);
+    SetShaderValue(terrainShader, GetShaderLocation(terrainShader, "shiftIntensity"), &shiftIntensity, SHADER_UNIFORM_FLOAT);
+    SetShaderValue(terrainShader, GetShaderLocation(terrainShader, "shiftDisplacement"), &shiftDisplacement, SHADER_UNIFORM_FLOAT);
+}
+
+// Update shader uniforms for terrain chunks
+void resourceManager::updateTerrainLighting(Vector3 sunDirection, Vector3 sunColor,
+                                            float ambientStrength, Vector3 ambientColor,
+                                            float shiftIntensity, float shiftDisplacement) {
+    SetShaderValue(terrainShader, GetShaderLocation(terrainShader, "sunDirection"), &sunDirection, SHADER_UNIFORM_VEC3);
+    SetShaderValue(terrainShader, GetShaderLocation(terrainShader, "sunColor"), &sunColor, SHADER_UNIFORM_VEC3);
+    SetShaderValue(terrainShader, GetShaderLocation(terrainShader, "ambientStrength"), &ambientStrength, SHADER_UNIFORM_FLOAT);
+    SetShaderValue(terrainShader, GetShaderLocation(terrainShader, "ambientColor"), &ambientColor, SHADER_UNIFORM_VEC3);
+    SetShaderValue(terrainShader, GetShaderLocation(terrainShader, "shiftIntensity"), &shiftIntensity, SHADER_UNIFORM_FLOAT);
+    SetShaderValue(terrainShader, GetShaderLocation(terrainShader, "shiftDisplacement"), &shiftDisplacement, SHADER_UNIFORM_FLOAT);
+}
+
 
 void resourceManager::cleanup() {
     if (!initialized) return;
