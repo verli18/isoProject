@@ -8,6 +8,7 @@
 Camera resourceManager::camera;
 Vector3 cameraPosition = {32.0f, 32.0f, 32.0f};
 Vector3 cameraTarget = {0.0f, 0.0f, 0.0f};
+
 void gameState::init() {
     
     renderCanvas = LoadRenderTexture(GAMEWIDTH, GAMEHEIGHT);
@@ -43,7 +44,7 @@ void gameState::init() {
 }
 
 void gameState::update() {
-    //UpdateCamera(&camera, CAMERA_ORTHOGRAPHIC);
+    //UpdateCamera(&camera, CAMERA_FREE);
     resourceManager::camera = camera;
     // Load or unload chunks based on camera movement
     world.update(camera);
@@ -60,7 +61,9 @@ void gameState::update() {
     if(IsKeyDown(KEY_S)) { cameraPosition.z += 1 * GetFrameTime() * 10; cameraTarget.z += 1 * GetFrameTime() * 10; }
     if(IsKeyDown(KEY_A)) { cameraPosition.x -= 1 * GetFrameTime() * 10; cameraTarget.x -= 1 * GetFrameTime() * 10; }
     if(IsKeyDown(KEY_D)) { cameraPosition.x += 1 * GetFrameTime() * 10; cameraTarget.x += 1 * GetFrameTime() * 10; }
-
+    if(IsKeyDown(KEY_SPACE)) { cameraPosition.y += 1 * GetFrameTime() * 10; cameraTarget.y += 1 * GetFrameTime() * 10; }
+    if(IsKeyDown(KEY_LEFT_CONTROL)) { cameraPosition.y -= 1 * GetFrameTime() * 10; cameraTarget.y -= 1 * GetFrameTime() * 10; }
+    
     camera.target = cameraTarget;
     camera.position = cameraPosition;
     if (IsMouseButtonDown(MOUSE_LEFT_BUTTON)) {
@@ -78,18 +81,30 @@ void gameState::update() {
 
 void gameState::render() {
 
+
     BeginDrawing();
         BeginTextureMode(renderCanvas);
         ClearBackground(BLACK);
         BeginMode3D(camera);
         rlDisableBackfaceCulling();
-        machineManagement.render();
-        if (IsKeyPressed(KEY_G)) showGrid = !showGrid;
-        if (IsKeyPressed(KEY_E)) showDebug = !showDebug;
-        if (!showGrid) world.render();
-        else world.renderWires();
-        if (showDebug) world.renderDataPoint();
-
+        switch(renderMode) {
+            case 0: 
+                rlEnableWireMode();
+                machineManagement.render();
+                world.render();
+                rlDisableWireMode();
+             break;
+            case 1:
+                machineManagement.render();
+                world.render();
+             break;
+            case 2:
+                switch (debugOpt) {
+                    case 0: world.renderDataPoint({20,20,200}, {240, 234, 100}, &tile::moisture); break;
+                    case 1: world.renderDataPoint({50,20,190}, {240, 30, 10}, &tile::temperature); break;
+                }
+             break;
+        }
         EndMode3D();
         rlImGuiBegin();
     
@@ -100,10 +115,14 @@ void gameState::render() {
 
         ImGui::End(); 
         ImGui::Begin("debug", NULL);
+        ImGui::RadioButton("wireframe", &renderMode, 0);
+        ImGui::RadioButton("mesh", &renderMode, 1);
+        ImGui::RadioButton("debug", &renderMode, 2);
+        ImGui::Combo("mode", &debugOpt, "moisture\0temperature\0");
+    
         ImGui::End();
         rlImGuiEnd();
         EndTextureMode();
-        
         
         
         DrawTexturePro(renderCanvas.texture, Rectangle{0, 0, 320, -240}, Rectangle{0, 0, 320 * GAMESCALE, 240 * GAMESCALE}, Vector2{0, 0}, 0, WHITE);

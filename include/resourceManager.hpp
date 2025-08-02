@@ -36,7 +36,7 @@ public:
     // Accessors
     static Model& getMachineModel(machineType type);
     static Texture2D& getMachineTexture(machineType type);
-    static Shader& getShader();
+    static Shader& getShader(int n);
     static Texture2D& getItemTexture(itemType type);
     static Rectangle getItemTextureUV(itemType type);
     // Lighting update
@@ -49,6 +49,9 @@ public:
     static void updateTerrainLighting(Vector3 sunDirection, Vector3 sunColor,
                                      float ambientStrength, Vector3 ambientColor,
                                      float shiftIntensity, float shiftDisplacement);
+    
+    // Update water depth-based alpha parameters
+    static void updateWaterDepthParams(float minDepth, float maxDepth, float minAlpha, float maxAlpha);
 
 private:
     // Prevent instantiation
@@ -62,4 +65,5 @@ private:
     static std::unordered_map<machineType, std::string> modelPaths;
     static std::unordered_map<machineType, std::string> texturePaths;
     static Shader terrainShader;
+    static Shader waterShader;
 };

@@ -46,15 +46,18 @@ machine* tileGrid::getMachineAt(int x, int y) {
     return grid[y][x].occupyingMachine;
 }
 
-void tileGrid::generatePerlinTerrain(float scale, int offsetX, int offsetY, int heightCo,
-                                    int octaves, float persistence, float lacunarity, float exponent) {
+void tileGrid::generatePerlinTerrain(float scale, int heightCo,
+                                    int octaves, float persistence, float lacunarity, float exponent, int baseGenOffset[6]) {
     // Generate multiple Perlin noise images for fractal noise (octaves)
     std::vector<Image> noiseImages;
     noiseImages.reserve(octaves);
+
+    Image moistureMap = GenImagePerlinNoise(width+1, height+1, baseGenOffset[2], baseGenOffset[3], scale);
+    Image temperatureMap = GenImagePerlinNoise(width+1, height+1, baseGenOffset[4], baseGenOffset[5], scale);
     for (int i = 0; i < octaves; ++i) {
         float octaveScale = scale * std::pow(lacunarity, (float)i);
         noiseImages.push_back(
-            GenImagePerlinNoise(width+1, height+1, offsetX, offsetY, octaveScale)
+            GenImagePerlinNoise(width+1, height+1, baseGenOffset[0], baseGenOffset[1], octaveScale)
         );
     }
 
@@ -99,9 +102,30 @@ void tileGrid::generatePerlinTerrain(float scale, int offsetX, int offsetY, int 
                     }
                 }
             }
-            // Assign tile type based on average height
+
+            t.moisture = GetImageColor(moistureMap, x, y).r;
+            t.temperature = GetImageColor(temperatureMap, x, y).r;
+
             float avgH = (t.tileHeight[0] + t.tileHeight[1] + t.tileHeight[2] + t.tileHeight[3]) / 4.0f;
             t.type = (avgH > heightCo * 0.5f) ? SNOW : GRASS;
+
+            const float waterPlane = (float)heightCo * 0.45f; 
+            const float maxWaterLevel = (float)heightCo;      
+            float desiredWaterY = waterPlane - 0.5f;
+            float avgHeight = (t.tileHeight[0] + t.tileHeight[1] + t.tileHeight[2] + t.tileHeight[3]) / 4.0f;
+            float minHeight = fminf(fminf(t.tileHeight[0], t.tileHeight[1]), fminf(t.tileHeight[2], t.tileHeight[3]));
+            float effectiveHeight = (minHeight + avgHeight) / 2.0f;
+
+            // Only place water if threshold is above the effective terrain height
+            if (desiredWaterY > effectiveHeight) {
+                float clampedY = fminf(desiredWaterY, maxWaterLevel);
+                int quantized = (int)roundf(clampedY * 2.0f); // half-units
+                t.waterLevel = quantized;
+                if (effectiveHeight + 1 < desiredWaterY) t.type = DIRT;
+            } else {
+                t.waterLevel = 0;
+            }
+
             // Default lighting placeholder
             t.lighting[0] = WHITE;
             setTile(x, y, t);
@@ -166,33 +190,18 @@ void tileGrid::renderWires() {
     }
 }
 
-void tileGrid::renderDataPoint(int offsetX, int offsetY) {
+void tileGrid::renderDataPoint(Color a, Color b, int tile::*dataMember, int chunkX, int chunkY) {
     for (int x = 0; x < width; x++) {
         for (int y = 0; y < height; y++) {
             tile t = getTile(x, y);
-            Vector3 v0 = {(float)x + offsetX,     (float)t.tileHeight[0], (float)y + offsetY};
-            Vector3 v1 = {(float)x + 1 + offsetX, (float)t.tileHeight[1], (float)y + offsetY};
-            Vector3 v2 = {(float)x + 1 + offsetX, (float)t.tileHeight[2], (float)y + 1 + offsetY};
-            Vector3 v3 = {(float)x + offsetX,     (float)t.tileHeight[3], (float)y + 1 + offsetY};
+            Vector3 v0 = {(float)x + chunkX,     (float)t.tileHeight[0], (float)y + chunkY};
+            Vector3 v1 = {(float)x + 1 + chunkX, (float)t.tileHeight[1], (float)y + chunkY};
+            Vector3 v2 = {(float)x + 1 + chunkX, (float)t.tileHeight[2], (float)y + 1 + chunkY};
+            Vector3 v3 = {(float)x + chunkX,     (float)t.tileHeight[3], (float)y + 1 + chunkY};
             
-            DrawLine3D(v2, v1, lerp({20,20,200}, {240, 234, 100}, t.temperature));
-            DrawLine3D(v3, v2, lerp({20,20,200}, {240, 234, 100}, t.temperature));
-            DrawLine3D(v3, v0, lerp({20,20,200}, {240, 234, 100}, t.temperature));
-        }
-    }
-}
-
-void tileGrid::renderSurface() {
-    for (int x = 0; x < width; x++) {
-        for (int y = 0; y < height; y++) {
-            tile t = getTile(x, y);
-            Vector3 v0 = {(float)x,     (float)t.tileHeight[0], (float)y};
-            Vector3 v1 = {(float)x + 1, (float)t.tileHeight[1], (float)y};
-            Vector3 v2 = {(float)x + 1, (float)t.tileHeight[2], (float)y + 1};
-            Vector3 v3 = {(float)x,     (float)t.tileHeight[3], (float)y + 1};
-            
-            DrawTriangle3D(v2, v1, v0, WHITE);
-            DrawTriangle3D(v3, v2, v1, WHITE);
+            DrawLine3D(v2, v1, lerp(a, b, t.*dataMember));
+            DrawLine3D(v3, v2, lerp(a, b, t.*dataMember));
+            DrawLine3D(v3, v0, lerp(a, b, t.*dataMember));
         }
     }
 }
@@ -442,7 +451,7 @@ void tileGrid::generateMesh() {
     model = LoadModelFromMesh(mesh);
     model.materials[0].maps[MATERIAL_MAP_DIFFUSE].texture = LoadTexture("textures.png");
     // Assign shared terrain shader
-    Shader& shader = resourceManager::getShader();
+    Shader& shader = resourceManager::getShader(0);
     model.materials[0].shader = shader;
 }
 
@@ -453,4 +462,84 @@ void tileGrid::updateLighting(Vector3 sunDirection, Vector3 sunColor, float ambi
         ambientStrength, ambientColor,
         shiftIntensity, shiftDisplacement
     );
+}
+
+// Build a separate flat translucent water surface model
+void tileGrid::generateWaterMesh() {
+    // Build flat water surface at constant waterY with diagonal splitting
+    std::vector<Vector3> vertices;
+    std::vector<Vector3> normals;
+    // Buffer to store underlying terrain height per water vertex
+    std::vector<float> baseHeights;
+    vertices.reserve(width * height * 6);
+    normals.reserve(width * height * 6);
+    for (int x = 0; x < width; ++x) {
+        for (int y = 0; y < height; ++y) {
+            tile t = getTile(x, y);
+            if (t.waterLevel <= 0) continue;
+            float waterY = 0.5f * (float)t.waterLevel;
+            // Define water quad corners at flat waterY
+            Vector3 v0 = {(float)x,     waterY, (float)y};
+            Vector3 v1 = {(float)x + 1, waterY, (float)y};
+            Vector3 v2 = {(float)x + 1, waterY, (float)y + 1};
+            Vector3 v3 = {(float)x,     waterY, (float)y + 1};
+            // Emit diagonal triangles where water plane exceeds terrain height at ANY corner
+            // Triangle A: v2, v1, v0 (corners 2,1,0)
+            if (waterY >= t.tileHeight[2] || waterY >= t.tileHeight[1] || waterY >= t.tileHeight[0]) {
+                vertices.push_back(v2); vertices.push_back(v1); vertices.push_back(v0);
+                normals.push_back({0,1,0}); normals.push_back({0,1,0}); normals.push_back({0,1,0});
+                baseHeights.push_back(t.tileHeight[2]); baseHeights.push_back(t.tileHeight[1]); baseHeights.push_back(t.tileHeight[0]);
+            }
+            // Triangle B: v3, v2, v0 (corners 3,2,0)
+            if (waterY >= t.tileHeight[3] || waterY >= t.tileHeight[2] || waterY >= t.tileHeight[0]) {
+                vertices.push_back(v3); vertices.push_back(v2); vertices.push_back(v0);
+                normals.push_back({0,1,0}); normals.push_back({0,1,0}); normals.push_back({0,1,0});
+                baseHeights.push_back(t.tileHeight[3]); baseHeights.push_back(t.tileHeight[2]); baseHeights.push_back(t.tileHeight[0]);
+            }
+        }
+    }
+
+    int vertexCount = (int)vertices.size();
+    int triangleCount = vertexCount / 3;
+
+    // If empty, create an empty mesh/model with translucent tint
+    waterMesh = {0};
+    waterModel = LoadModelFromMesh(waterMesh);
+    Color tint = { 40, 120, 220, 140 };
+
+    if (vertexCount == 0) {
+        for (int i = 0; i < waterModel.materialCount; ++i) {
+            waterModel.materials[i].maps[MATERIAL_MAP_DIFFUSE].color = tint;
+            waterModel.materials[i].shader = resourceManager::getShader(0);
+        }
+        return;
+    }
+
+    // Allocate arrays (positions, normals, and use texcoords.x for base height)
+    waterMesh.vertexCount = vertexCount;
+    waterMesh.triangleCount = triangleCount;
+    waterMesh.vertices = (float*)MemAlloc(vertexCount * 3 * sizeof(float));
+    waterMesh.normals  = (float*)MemAlloc(vertexCount * 3 * sizeof(float));
+    waterMesh.texcoords = (float*)MemAlloc(vertexCount * 2 * sizeof(float));
+
+    for (int i = 0; i < vertexCount; ++i) {
+        waterMesh.vertices[i*3+0] = vertices[i].x;
+        waterMesh.vertices[i*3+1] = vertices[i].y;
+        waterMesh.vertices[i*3+2] = vertices[i].z;
+        waterMesh.normals[i*3+0] = normals[i].x;
+        waterMesh.normals[i*3+1] = normals[i].y;
+        waterMesh.normals[i*3+2] = normals[i].z;
+        // pack underlying terrain height in texcoord.x, leave y unused
+        waterMesh.texcoords[i*2+0] = baseHeights[i];
+        waterMesh.texcoords[i*2+1] = 0.0f;
+    }
+
+    UploadMesh(&waterMesh, true);
+
+    // Create model and set translucent blue color
+    waterModel = LoadModelFromMesh(waterMesh);
+    for (int i = 0; i < waterModel.materialCount; ++i) {
+        waterModel.materials[i].maps[MATERIAL_MAP_DIFFUSE].color = tint;
+        waterModel.materials[i].shader = resourceManager::getShader(1);
+    }
 }

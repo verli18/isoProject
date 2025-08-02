@@ -10,9 +10,9 @@ class gameState{
     public:
     sun sunData;
     Camera3D camera = { {32.0f, 32.0f, 32.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 1.0f, 0.0f}, 20.0f, CAMERA_PERSPECTIVE};
-    bool showGrid = false; // default to surface rendering
-    bool showDebug = false;
-    gameState() : world(2) {
+    int renderMode = 1;
+    int debugOpt = 0;
+    gameState() : world(3) {
         init();
     }
 

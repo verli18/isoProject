@@ -10,7 +10,13 @@ class Chunk {
         void updateMesh();
 
         void render();
+        // Draw only opaque terrain
+        void renderTerrain();
+        // Draw only transparent water layer
+        void renderWater();
         void renderWires();
+        // Draw only water wireframe
+        void renderWaterWires();
         void renderDataPoint();
 
         tileGrid tiles;

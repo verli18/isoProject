@@ -5,6 +5,7 @@ bool resourceManager::initialized = false;
 std::unordered_map<machineType, Model> resourceManager::machineModels;
 std::unordered_map<machineType, Texture2D> resourceManager::machineTextures;
 Shader resourceManager::terrainShader;
+Shader resourceManager::waterShader;
 std::unordered_map<machineType, std::string> resourceManager::modelPaths = {
     { CONVEYORMK1, "assets/models/conveyor_mk1.glb" },
     { DRILLMK1,    "assets/models/drill_mk1.glb" }
@@ -25,9 +26,34 @@ void resourceManager::initialize() {
     sun sunData;
     if (initialized) return;
 
-    // Load shader first
-    terrainShader = LoadShader("assets/shaders/terrainShader.vs", 
-                              "assets/shaders/terrainShader.fs");
+    // Load terrain and water shaders
+    terrainShader = LoadShader("assets/shaders/terrainShader.vs", "assets/shaders/terrainShader.fs");
+    waterShader   = LoadShader("assets/shaders/waterShader.vs",   "assets/shaders/waterShader.fs");
+    // Set default HSV shift for water shader
+
+    float defaultShift = -0.1f;
+    float defaultSat = 4.0f;
+    float defaultVal = 0.5f;
+    int locHue = GetShaderLocation(waterShader, "waterHue");
+    int locSat = GetShaderLocation(waterShader, "waterSaturation");
+    int locVal = GetShaderLocation(waterShader, "waterValue");
+    SetShaderValue(waterShader, locHue, &defaultShift, SHADER_UNIFORM_FLOAT);
+    SetShaderValue(waterShader, locSat, &defaultSat, SHADER_UNIFORM_FLOAT);
+    SetShaderValue(waterShader, locVal, &defaultVal, SHADER_UNIFORM_FLOAT);
+    
+    // Set default depth-based alpha parameters
+    float minDepth = 0.0f;      // Start alpha calculation at 0 depth
+    float maxDepth = 4.0f;      // Full alpha at 2 units deep
+    float minAlpha = 0.4f;      // 20% alpha for very shallow water
+    float maxAlpha = 1.0f;      // 80% alpha for deep water
+    int locMinDepth = GetShaderLocation(waterShader, "minDepth");
+    int locMaxDepth = GetShaderLocation(waterShader, "maxDepth");
+    int locMinAlpha = GetShaderLocation(waterShader, "minAlpha");
+    int locMaxAlpha = GetShaderLocation(waterShader, "maxAlpha");
+    SetShaderValue(waterShader, locMinDepth, &minDepth, SHADER_UNIFORM_FLOAT);
+    SetShaderValue(waterShader, locMaxDepth, &maxDepth, SHADER_UNIFORM_FLOAT);
+    SetShaderValue(waterShader, locMinAlpha, &minAlpha, SHADER_UNIFORM_FLOAT);
+    SetShaderValue(waterShader, locMaxAlpha, &maxAlpha, SHADER_UNIFORM_FLOAT);
 
     // Load item texture atlas
     itemTexture = LoadTexture("assets/textures/items.png");
@@ -100,6 +126,7 @@ void resourceManager::cleanup() {
     
     UnloadTexture(itemTexture);
     UnloadShader(terrainShader);
+    UnloadShader(waterShader);
 
     machineModels.clear();
     machineTextures.clear();
@@ -115,8 +142,15 @@ Texture2D& resourceManager::getMachineTexture(machineType type) {
     return machineTextures[type];
 }
 
-Shader& resourceManager::getShader() {
-    return terrainShader;
+Shader& resourceManager::getShader(int n) {
+    switch(n) {
+        case 0:
+            return terrainShader;
+        case 1:
+            return waterShader;
+        default:
+            return terrainShader;
+    }
 }
 
 Texture2D& resourceManager::getItemTexture(itemType type) {
@@ -131,4 +165,16 @@ Rectangle resourceManager::getItemTextureUV(itemType type) {
     }
     // Return default UV if not found
     return Rectangle{0, 0, 16, 16};
+}
+
+// Update water depth-based alpha parameters
+void resourceManager::updateWaterDepthParams(float minDepth, float maxDepth, float minAlpha, float maxAlpha) {
+    int locMinDepth = GetShaderLocation(waterShader, "minDepth");
+    int locMaxDepth = GetShaderLocation(waterShader, "maxDepth");
+    int locMinAlpha = GetShaderLocation(waterShader, "minAlpha");
+    int locMaxAlpha = GetShaderLocation(waterShader, "maxAlpha");
+    SetShaderValue(waterShader, locMinDepth, &minDepth, SHADER_UNIFORM_FLOAT);
+    SetShaderValue(waterShader, locMaxDepth, &maxDepth, SHADER_UNIFORM_FLOAT);
+    SetShaderValue(waterShader, locMinAlpha, &minAlpha, SHADER_UNIFORM_FLOAT);
+    SetShaderValue(waterShader, locMaxAlpha, &maxAlpha, SHADER_UNIFORM_FLOAT);
 }

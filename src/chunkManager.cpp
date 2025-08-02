@@ -19,20 +19,30 @@ void chunkManager::update(const Camera& cam) {
 }
 
 void chunkManager::render() {
-    for(auto& pair : chunks) {
-        pair.second->render();
+    // First pass: draw all opaque terrain
+    for (auto& pair : chunks) {
+        pair.second->renderTerrain();
+    }
+    // Second pass: draw all transparent water layers
+    for (auto& pair : chunks) {
+        pair.second->renderWater();
     }
 }
 
-void chunkManager::renderDataPoint() {
+void chunkManager::renderDataPoint(Color a, Color b, int tile::*dataMember) {
     for(auto& pair : chunks) {
-        pair.second->tiles.renderDataPoint(pair.first.x * CHUNKSIZE, pair.first.y * CHUNKSIZE);
+        pair.second->tiles.renderDataPoint(a, b, dataMember, pair.first.x * CHUNKSIZE, pair.first.y * CHUNKSIZE);
     }
 }
 
 void chunkManager::renderWires() {
-    for(auto& pair : chunks) {
+    // Draw terrain wireframes
+    for (auto& pair : chunks) {
         pair.second->renderWires();
+    }
+    // Draw water wireframes
+    for (auto& pair : chunks) {
+        pair.second->renderWaterWires();
     }
 }
 
