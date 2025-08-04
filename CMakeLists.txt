@@ -11,11 +11,12 @@ set(CMAKE_C_STANDARD_REQUIRED ON)
 
 # Build options
 option(BUILD_SHARED_LIBS "Build shared libraries" OFF)
-option(ENABLE_ASAN "Enable Address Sanitizer" OFF)
+option(ENABLE_ASAN "Enable ress Sanitizer" OFF)
 option(ENABLE_UBSAN "Enable Undefined Behavior Sanitizer" OFF)
 
 # Find required packages
 find_package(PkgConfig REQUIRED)
+find_package(benchmark REQUIRED)
 pkg_check_modules(RAYLIB REQUIRED raylib)
 include_directories(${RAYLIB_INCLUDE_DIRS})
 
@@ -42,12 +43,22 @@ set(SOURCES
 include_directories(${CMAKE_SOURCE_DIR}/include)
 include_directories(${CMAKE_SOURCE_DIR}/libs/rlImGui)
 include_directories(${CMAKE_SOURCE_DIR}/libs/rlImGui/imgui)
-
+add_subdirectory(libs/FastNoise2)
+include_directories(${CMAKE_SOURCE_DIR}/libs/FastNoise2/include)
 # Create executable
 add_executable(IsometricGame ${SOURCES})
+# Enable in-game profiling timers (ImGui timings) when desired.
+# Comment this line to disable profiling without changing code.
+add_compile_definitions(TILEGRID_PROFILE)
 
 # Link libraries
-target_link_libraries(${PROJECT_NAME} PRIVATE ${RAYLIB_LIBRARIES})
+target_link_libraries(${PROJECT_NAME} 
+    PRIVATE 
+        ${RAYLIB_LIBRARIES}
+        benchmark::benchmark
+        pthread
+        FastNoise2
+)
 # Add the raylib library path to rpath
 set_target_properties(${PROJECT_NAME} PROPERTIES
     INSTALL_RPATH "${RAYLIB_LIBRARY_DIRS}"

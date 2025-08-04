@@ -5,14 +5,24 @@
 #include <raylib.h>
 #include <raymath.h>
 #include "../include/resourceManager.hpp"  // use shared shader
+#include <chrono>
+#include <FastNoise/FastNoise.h>
+
+// Moved into tileGrid class
 
 Color lerp(Color a, Color b, int t) {
     return Color{static_cast<unsigned char>(a.r + (b.r - a.r) * t / 255), static_cast<unsigned char>(a.g + (b.g - a.g) * t / 255), static_cast<unsigned char>(a.b + (b.b - a.b) * t / 255), 255};
 }
-tileGrid::tileGrid(int width, int height) {
-    this->width = width;
-    this->height = height;
+tileGrid::tileGrid(int width, int height) : width(width), height(height) {
     grid.resize(width, std::vector<tile>(height));
+    
+    // Initialize FastNoise objects
+    fnSimplex = FastNoise::New<FastNoise::Simplex>();
+    fnFractal = FastNoise::New<FastNoise::FractalFBm>();
+    
+    // Configure fractal noise
+    fnFractal->SetSource(fnSimplex);
+    fnFractal->SetOctaveCount(5);
 }
 
 tileGrid::~tileGrid() {
@@ -48,12 +58,13 @@ machine* tileGrid::getMachineAt(int x, int y) {
 
 void tileGrid::generatePerlinTerrain(float scale, int heightCo,
                                     int octaves, float persistence, float lacunarity, float exponent, int baseGenOffset[6]) {
-    // Generate multiple Perlin noise images for fractal noise (octaves)
-    std::vector<Image> noiseImages;
-    noiseImages.reserve(octaves);
+    using clock = std::chrono::high_resolution_clock;
+    auto t0 = clock::now();
 
     Image moistureMap = GenImagePerlinNoise(width+1, height+1, baseGenOffset[2], baseGenOffset[3], scale);
     Image temperatureMap = GenImagePerlinNoise(width+1, height+1, baseGenOffset[4], baseGenOffset[5], scale);
+    std::vector<Image> noiseImages;
+    noiseImages.reserve(octaves);
     for (int i = 0; i < octaves; ++i) {
         float octaveScale = scale * std::pow(lacunarity, (float)i);
         noiseImages.push_back(
@@ -87,7 +98,7 @@ void tileGrid::generatePerlinTerrain(float scale, int heightCo,
             float fBR = std::pow(sumBR / weightSum, exponent);
             float fBL = std::pow(sumBL / weightSum, exponent);
 
-            // Convert to tile heights with half-step rounding
+            // Convert to heights with half-unit quantization
             t.tileHeight[0] = std::round(fTL * heightCo * 2.0f) / 2.0f;
             t.tileHeight[1] = std::round(fTR * heightCo * 2.0f) / 2.0f;
             t.tileHeight[2] = std::round(fBR * heightCo * 2.0f) / 2.0f;
@@ -211,6 +222,10 @@ unsigned int tileGrid::getHeight() { return height; }
 unsigned int tileGrid::getDepth() { return depth; }
 
 void tileGrid::generateMesh() {
+    using clock = std::chrono::high_resolution_clock;
+#ifdef TILEGRID_PROFILE
+    auto t0 = clock::now();
+#endif
     // Assuming texture atlas dimensions (you may want to make these configurable)
     const float atlasWidth = 64.0f;  // Total atlas width in pixels
     const float atlasHeight = 16.0f; // Total atlas height in pixels
@@ -231,60 +246,81 @@ void tileGrid::generateMesh() {
             Vector3 v2 = {(float)x + 1, (float)t.tileHeight[2], (float)y + 1};
             Vector3 v3 = {(float)x,     (float)t.tileHeight[3], (float)y + 1};
             
-            // Get texture atlas info for this tile type
-            textureAtlas atlas = textures[t.type];
-            
-            // Calculate UV coordinates for the top face
-            float uMin = (float)atlas.uOffset / atlasWidth;
-            float vMin = (float)atlas.vOffset / atlasHeight;
-            float uMax = (float)(atlas.uOffset + atlas.width) / atlasWidth;
-            float vMax = (float)(atlas.vOffset + atlas.height) / atlasHeight;
-            
-            // First triangle: v2, v1, v0 (counter-clockwise)
-            vertices.push_back(v2);
-            vertices.push_back(v1);
-            vertices.push_back(v0);
+            // Choose the mesh diagonal with the smallest height difference for a smoother look
+            float diag1_diff = fabsf(t.tileHeight[0] - t.tileHeight[2]);
+            float diag2_diff = fabsf(t.tileHeight[1] - t.tileHeight[3]);
 
-            // Second triangle: v3, v2, v0 (counter-clockwise)
-            vertices.push_back(v3);
-            vertices.push_back(v2);
-            vertices.push_back(v0);
-            
-            // Texture coordinates for each vertex (6 vertices total)
-            // First triangle: v2, v1, v0
-            texcoords.push_back(Vector2{uMax, vMax});  // v2 (bottom-right)
-            texcoords.push_back(Vector2{uMax, vMin});  // v1 (top-right)
-            texcoords.push_back(Vector2{uMin, vMin});  // v0 (top-left)
-            
-            // Second triangle: v3, v2, v0
-            texcoords.push_back(Vector2{uMin, vMax});  // v3 (bottom-left)
-            texcoords.push_back(Vector2{uMax, vMax});  // v2 (bottom-right)
-            texcoords.push_back(Vector2{uMin, vMin});  // v0 (top-left)
-            
-            // Calculate normal for the first triangle (v2, v1, v0)
-            Vector3 n1_edge1 = Vector3Subtract(v1, v0);
-            Vector3 n1_edge2 = Vector3Subtract(v2, v0);
-            Vector3 normal1 = Vector3Normalize(Vector3CrossProduct(n1_edge1, n1_edge2));
-            // Add normals for first triangle vertices
-            normals.push_back(normal1);
-            normals.push_back(normal1);
-            normals.push_back(normal1);
+            if (diag1_diff <= diag2_diff) {
+                // --- Split with diagonal v0-v2 ---
+                textureAtlas t1, t2;
+                // Triangle 1 (v0,v1,v2) texture
+                if (x < width - 2 && y > 1 && grid[x+1][y].type == grid[x][y-1].type && grid[x][y-1].type == grid[x+1][y-1].type && grid[x+1][y-2].type == grid[x+1][y-1].type && grid[x+2][y-1].type == grid[x+1][y-1].type) {
+                    t1 = textures[grid[x+1][y].type];
+                } else {
+                    t1 = textures[t.type];
+                }
+                // Triangle 2 (v0,v2,v3) texture
+                if (x > 1 && y < height - 2 && grid[x-1][y].type == grid[x][y+1].type && grid[x][y+1].type == grid[x-1][y+1].type && grid[x-2][y+1].type == grid[x-1][y+1].type && grid[x-1][y+2].type == grid[x-1][y+1].type) {
+                    t2 = textures[grid[x-1][y].type];
+                } else {
+                    t2 = textures[t.type];
+                }
 
-            // Calculate normal for the second triangle (v3, v2, v0)
-            Vector3 n2_edge1 = Vector3Subtract(v2, v0);
-            Vector3 n2_edge2 = Vector3Subtract(v3, v0);
-            Vector3 normal2 = Vector3Normalize(Vector3CrossProduct(n2_edge1, n2_edge2));
-            // Add normals for second triangle vertices
-            normals.push_back(normal2);
-            normals.push_back(normal2);
-            normals.push_back(normal2);
+                float uMin1 = (float)t1.uOffset / atlasWidth, vMin1 = (float)t1.vOffset / atlasHeight;
+                float uMax1 = (float)(t1.uOffset + t1.width) / atlasWidth, vMax1 = (float)(t1.vOffset + t1.height) / atlasHeight;
+                float uMin2 = (float)t2.uOffset / atlasWidth, vMin2 = (float)t2.vOffset / atlasHeight;
+                float uMax2 = (float)(t2.uOffset + t2.width) / atlasWidth, vMax2 = (float)(t2.vOffset + t2.height) / atlasHeight;
+
+                // Triangle 1: v0, v1, v2
+                vertices.push_back(v0); vertices.push_back(v1); vertices.push_back(v2);
+                texcoords.push_back(Vector2{uMin1, vMin1}); texcoords.push_back(Vector2{uMax1, vMin1}); texcoords.push_back(Vector2{uMax1, vMax1});
+                
+                // Triangle 2: v0, v2, v3
+                vertices.push_back(v0); vertices.push_back(v2); vertices.push_back(v3);
+                texcoords.push_back(Vector2{uMin2, vMin2}); texcoords.push_back(Vector2{uMax2, vMax2}); texcoords.push_back(Vector2{uMin2, vMax2});
+
+            } else {
+                // --- Split with diagonal v1-v3 ---
+                textureAtlas t1, t2;
+                // Triangle 1 (v1,v2,v3) texture
+                if (x < width - 1 && y < height - 1 && grid[x+1][y].type == grid[x][y+1].type && grid[x][y+1].type == grid[x+1][y+1].type) {
+                    t1 = textures[grid[x+1][y].type];
+                } else {
+                    t1 = textures[t.type];
+                }
+                // Triangle 2 (v1,v3,v0) texture
+                if (x > 0 && y > 0 && grid[x-1][y].type == grid[x][y-1].type && grid[x][y-1].type == grid[x-1][y-1].type) {
+                    t2 = textures[grid[x-1][y].type];
+                } else {
+                    t2 = textures[t.type];
+                }
+
+                float uMin1 = (float)t1.uOffset / atlasWidth, vMin1 = (float)t1.vOffset / atlasHeight;
+                float uMax1 = (float)(t1.uOffset + t1.width) / atlasWidth, vMax1 = (float)(t1.vOffset + t1.height) / atlasHeight;
+                float uMin2 = (float)t2.uOffset / atlasWidth, vMin2 = (float)t2.vOffset / atlasHeight;
+                float uMax2 = (float)(t2.uOffset + t2.width) / atlasWidth, vMax2 = (float)(t2.vOffset + t2.height) / atlasHeight;
+
+                // Triangle 1: v1, v2, v3
+                vertices.push_back(v1); vertices.push_back(v2); vertices.push_back(v3);
+                texcoords.push_back(Vector2{uMax1, vMin1}); texcoords.push_back(Vector2{uMax1, vMax1}); texcoords.push_back(Vector2{uMin1, vMax1});
+
+                // Triangle 2: v1, v3, v0
+                vertices.push_back(v1); vertices.push_back(v3); vertices.push_back(v0);
+                texcoords.push_back(Vector2{uMax2, vMin2}); texcoords.push_back(Vector2{uMin2, vMax2}); texcoords.push_back(Vector2{uMin2, vMin2});
+            }
+
+            // Normals are calculated once for the whole quad and applied to both triangles
+            Vector3 n_edge1 = Vector3Subtract(v1, v0);
+            Vector3 n_edge2 = Vector3Subtract(v3, v0);
+            Vector3 normal = Vector3Normalize(Vector3CrossProduct(n_edge1, n_edge2));
+            for(int i=0; i<6; ++i) normals.push_back(normal);
             
             // Generate side faces (walls) where there are height differences
             // Calculate UV coordinates for side faces
-            float sideUMin = (float)atlas.sideUOffset / atlasWidth;
-            float sideVMin = (float)atlas.sideVOffset / atlasHeight;
-            float sideUMax = (float)(atlas.sideUOffset + atlas.width) / atlasWidth;
-            float sideVMax = (float)(atlas.sideVOffset + atlas.height) / atlasHeight;
+            float sideUMin = (float)textures[t.type].sideUOffset / atlasWidth;
+            float sideVMin = (float)textures[t.type].sideVOffset / atlasHeight;
+            float sideUMax = (float)(textures[t.type].sideUOffset + textures[t.type].width) / atlasWidth;
+            float sideVMax = (float)(textures[t.type].sideVOffset + textures[t.type].height) / atlasHeight;
             
             // Check each edge for height differences and generate wall faces only where needed
             
@@ -449,10 +485,18 @@ void tileGrid::generateMesh() {
     
     // Create model from mesh and assign diffuse texture
     model = LoadModelFromMesh(mesh);
-    model.materials[0].maps[MATERIAL_MAP_DIFFUSE].texture = LoadTexture("textures.png");
+    model.materials[0].maps[MATERIAL_MAP_DIFFUSE].texture = resourceManager::terrainTexture;
     // Assign shared terrain shader
     Shader& shader = resourceManager::getShader(0);
     model.materials[0].shader = shader;
+
+#ifdef TILEGRID_PROFILE
+    auto t1 = clock::now();
+    double meshMs = std::chrono::duration<double, std::milli>(t1 - t0).count();
+    lastTimings.samplesMesh++;
+    double nMesh = static_cast<double>(lastTimings.samplesMesh);
+    lastTimings.meshGenMs += (meshMs - lastTimings.meshGenMs) / std::max(1.0, nMesh);
+#endif
 }
 
 void tileGrid::updateLighting(Vector3 sunDirection, Vector3 sunColor, float ambientStrength, Vector3 ambientColor, float shiftIntensity, float shiftDisplacement) {
@@ -466,6 +510,10 @@ void tileGrid::updateLighting(Vector3 sunDirection, Vector3 sunColor, float ambi
 
 // Build a separate flat translucent water surface model
 void tileGrid::generateWaterMesh() {
+    using clock = std::chrono::high_resolution_clock;
+#ifdef TILEGRID_PROFILE
+    auto t0 = clock::now();
+#endif
     // Build flat water surface at constant waterY with diagonal splitting
     std::vector<Vector3> vertices;
     std::vector<Vector3> normals;
@@ -542,4 +590,12 @@ void tileGrid::generateWaterMesh() {
         waterModel.materials[i].maps[MATERIAL_MAP_DIFFUSE].color = tint;
         waterModel.materials[i].shader = resourceManager::getShader(1);
     }
+
+#ifdef TILEGRID_PROFILE
+    auto t1 = clock::now();
+    double waterMs = std::chrono::duration<double, std::milli>(t1 - t0).count();
+    lastTimings.samplesWater++;
+    double nWater = static_cast<double>(lastTimings.samplesWater);
+    lastTimings.waterGenMs += (waterMs - lastTimings.waterGenMs) / std::max(1.0, nWater);
+#endif
 }

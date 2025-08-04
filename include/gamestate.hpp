@@ -2,8 +2,8 @@
 #include "chunkManager.hpp"
 #include "resourceManager.hpp"
 
-#define GAMEWIDTH 320
-#define GAMEHEIGHT 240
+#define GAMEWIDTH 480
+#define GAMEHEIGHT 270
 #define GAMESCALE 3
 
 class gameState{

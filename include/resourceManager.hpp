@@ -53,6 +53,7 @@ public:
     // Update water depth-based alpha parameters
     static void updateWaterDepthParams(float minDepth, float maxDepth, float minAlpha, float maxAlpha);
 
+    static Texture2D terrainTexture;
 private:
     // Prevent instantiation
     resourceManager() = delete;

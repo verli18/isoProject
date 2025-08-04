@@ -1,10 +1,25 @@
 #include <vector>
 #include <raylib.h>
+#include <cstdint> // for uint64_t
+#include <FastNoise/FastNoise.h>
+
+// Timing data for terrain pipeline phases
+struct PhaseAverages {
+    double noiseGenMs = 0.0;
+    double indexingMs = 0.0;
+    double meshGenMs = 0.0;
+    double waterGenMs = 0.0;          // water mesh gen
+    double tempMoistSampleMs = 0.0;   // sampling of temp/moist
+    uint64_t samplesNoise = 0;
+    uint64_t samplesIndex = 0;
+    uint64_t samplesMesh = 0;
+    uint64_t samplesWater = 0;
+    uint64_t samplesTempMoist = 0;
+};
 
 class machine;
 
 struct tile{
-    //alright we're scrapping the marching cubes shit, that is way too annoying to deal with and honestly we won't even need layers of terrain so no use for that, let's use collumns now
     char type; //0 for air
     float tileHeight[4]; //TODO: make this int with half-unit increments
     Color lighting[4];
@@ -12,12 +27,10 @@ struct tile{
     int temperature = 0;
 
     // Interpreted as absolute Y level in half-units: waterY = 0.5f * waterLevel
-    // When 0, tile has no water and is ignored for meshing & logic.
     int waterLevel = 0;
 
     // Machine data
     machine* occupyingMachine = nullptr; // Pointer to machine on this tile
-
 };
 
 class tileGrid {
@@ -26,8 +39,6 @@ class tileGrid {
         ~tileGrid();
         void setTile(int x, int y, tile voxel);
         // Generate terrain with Perlin noise fractal (multiple octaves)
-        // scale: base frequency, offsetX/Y: noise seed offsets, heightCo: height coefficient
-        // octaves: number of noise layers, persistence: amplitude attenuation, lacunarity: frequency multiplier, exponent: curve shaping
         void generatePerlinTerrain(float scale, int heightCo,
                                    int octaves = 4, float persistence = 0.25f,
                                    float lacunarity = 2.0f, float exponent = 1.0f, int baseGenOffset[] = {});
@@ -57,6 +68,13 @@ class tileGrid {
 
         Model model;
         Model waterModel;
+
+        // Retrieve running average timings for phases
+        PhaseAverages getPhaseAverages();
+
+        // Expose last measurement snapshot (ms) for UI
+        PhaseAverages lastTimings;
+
     private:
         bool meshGenerated = false;
         Image perlinNoise;
@@ -64,4 +82,6 @@ class tileGrid {
         int height;
         int depth;
         std::vector<std::vector<tile>> grid;
+        FastNoise::SmartNode<FastNoise::Simplex> fnSimplex;
+        FastNoise::SmartNode<FastNoise::FractalFBm> fnFractal;
 };

@@ -108,27 +108,43 @@ void gameState::render() {
         EndMode3D();
         rlImGuiBegin();
     
+        /*
         ImGui::SetNextWindowPos(ImVec2(0, 0));
         ImGui::SetNextWindowSize(ImVec2(GAMEWIDTH, GAMEHEIGHT));
         ImGui::Begin("main UI", NULL, ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoBackground);
         if(ImGui::Button("build")) buildMode = !buildMode;
-
-        ImGui::End(); 
+        ImGui::End();
+        */
+        
         ImGui::Begin("debug", NULL);
         ImGui::RadioButton("wireframe", &renderMode, 0);
         ImGui::RadioButton("mesh", &renderMode, 1);
         ImGui::RadioButton("debug", &renderMode, 2);
         ImGui::Combo("mode", &debugOpt, "moisture\0temperature\0");
+
+#ifdef TILEGRID_PROFILE
+        // Show timing for center chunk (0,0)
+        {
+            Chunk* centerChunk = world.getChunk(0, 0);
+            if (centerChunk) {
+                PhaseAverages pa = centerChunk->tiles.lastTimings;
+                ImGui::SeparatorText("Chunk (0,0) Timings (ms)");
+                ImGui::Text("Noise textures:       %.3f  (n=%llu)", pa.noiseGenMs, (unsigned long long)pa.samplesNoise);
+                ImGui::Text("Indexing/colors:      %.3f  (n=%llu)", pa.indexingMs, (unsigned long long)pa.samplesIndex);
+                ImGui::Text("Mesh generation:      %.3f  (n=%llu)", pa.meshGenMs, (unsigned long long)pa.samplesMesh);
+                ImGui::Text("Water mesh:           %.3f  (n=%llu)", pa.waterGenMs, (unsigned long long)pa.samplesWater);
+                ImGui::Text("Temp/Moist sampling:  %.3f  (n=%llu)", pa.tempMoistSampleMs, (unsigned long long)pa.samplesTempMoist);
+            }
+        }
+#endif
     
         ImGui::End();
         rlImGuiEnd();
         EndTextureMode();
         
         
-        DrawTexturePro(renderCanvas.texture, Rectangle{0, 0, 320, -240}, Rectangle{0, 0, 320 * GAMESCALE, 240 * GAMESCALE}, Vector2{0, 0}, 0, WHITE);
+        DrawTexturePro(renderCanvas.texture, Rectangle{0, 0, GAMEWIDTH, -GAMEHEIGHT}, Rectangle{0, 0, GAMEWIDTH * GAMESCALE, GAMEHEIGHT * GAMESCALE}, Vector2{0, 0}, 0, WHITE);
         
-        DrawText("G - Toggle wireframe", 10, 10, 20, WHITE);
-        DrawText("E - Toggle debug", 10, 30, 20, WHITE);
-        DrawFPS(10, 40);
+        DrawFPS(0, 0);
     EndDrawing();
 }

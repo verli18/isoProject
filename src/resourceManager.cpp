@@ -4,6 +4,7 @@
 bool resourceManager::initialized = false;
 std::unordered_map<machineType, Model> resourceManager::machineModels;
 std::unordered_map<machineType, Texture2D> resourceManager::machineTextures;
+Texture2D resourceManager::terrainTexture = {0};
 Shader resourceManager::terrainShader;
 Shader resourceManager::waterShader;
 std::unordered_map<machineType, std::string> resourceManager::modelPaths = {
@@ -26,6 +27,7 @@ void resourceManager::initialize() {
     sun sunData;
     if (initialized) return;
 
+    terrainTexture = LoadTexture("textures.png");
     // Load terrain and water shaders
     terrainShader = LoadShader("assets/shaders/terrainShader.vs", "assets/shaders/terrainShader.fs");
     waterShader   = LoadShader("assets/shaders/waterShader.vs",   "assets/shaders/waterShader.fs");
