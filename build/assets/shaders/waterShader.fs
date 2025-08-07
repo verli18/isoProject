@@ -8,10 +8,12 @@ in vec2 fragTexCoord;
 out vec4 finalColor;
 
 // Uniforms
-uniform sampler2D texture0;
+uniform sampler2D texture0;      // Water texture
+uniform sampler2D texture1;      // Displacement texture (normal map slot)
 uniform float waterHue;
 uniform float waterSaturation;
 uniform float waterValue;
+uniform float time;              // Time for displacement animation
 
 // Depth-based alpha parameters
 uniform float minDepth;      // Minimum depth for alpha calculation
@@ -35,23 +37,89 @@ vec3 hsv2rgb(vec3 c) {
 }
 
 void main() {
-    // Calculate water depth: water Y position - terrain height
     float terrainHeight = fragTexCoord.x;  // Terrain height stored in texcoord.x
     float waterHeight = fragPosition.y;    // Current water surface Y position
     float depth = waterHeight - terrainHeight;
     
-    // Calculate depth-based alpha
+    // Calculate depth-based transparency
     float alpha = minAlpha + (maxAlpha - minAlpha) * clamp((depth - minDepth) / (maxDepth - minDepth), 0.0, 1.0);
     
-    // Base water color (blue)
+    // Base water color (blue) with HSV shifts applied
     vec3 baseColor = vec3(0.156, 0.47, 0.96);
-    // Convert to HSV and shift
     vec3 hsv = rgb2hsv(baseColor);
     hsv.x = clamp(hsv.x + waterHue, 0.0, 1.0);
     hsv.y = clamp(hsv.y * waterSaturation, 0.0, 1.0);
     hsv.z = clamp(hsv.z * waterValue, 0.0, 1.0);
-    vec3 shiftedColor = hsv2rgb(hsv);
+    vec3 tintedBaseColor = hsv2rgb(hsv);
+    
+    // Sample texture using world position for UV coordinates with time-based movement
+    float textureScale = fragTexCoord.y; // Texture scale factor stored in texcoord.y
+    
+    // Add time-based movement to make ripples and foam flow
+    vec2 flowDirection = vec2(0.02, 0.015); // Flow direction and speed
+    vec2 timeOffset = time * flowDirection;
+    vec2 baseTextureUV = vec2(fragPosition.x * textureScale, fragPosition.z * textureScale) + timeOffset;
+    
+    // Sample displacement texture for wobbling effect
+    float displacementScale = 0.8; // Scale factor for displacement texture
+    vec2 displacementUV = vec2(fragPosition.x * displacementScale + time * 0.05, fragPosition.z * displacementScale + time * 0.03);
+    vec3 displacement = texture(texture1, displacementUV).rgb;
+    
+    // Convert displacement to offset (-1 to 1 range)
+    vec2 displacementOffset = (displacement.xy - 0.5) * 2.0;
+    
+    // Apply displacement with depth-based intensity to the flowing texture
+    float displacementIntensity = 0.06; // Base displacement strength
+    float depthDisplacementFactor = clamp((depth - 0.5) / 2.0, 0.0, 1.0); // Stronger displacement in deeper water
+    vec2 finalTextureUV = baseTextureUV + displacementOffset * displacementIntensity * (0.3 + depthDisplacementFactor * 0.7);
+    
+    vec4 textureColorWithAlpha = texture(texture0, finalTextureUV);
+    vec3 textureColor = textureColorWithAlpha.rgb;
+    
+    // Calculate blend factor based on depth
+    float depthBlendFactor = clamp((depth - 1.0) / 1.0, 0.0, 1.0);
+    
+    // 2x2 Bayer dither matrix with displacement
+    mat2 ditherMatrix = mat2(
+        0.0/4.0, 2.0/4.0,
+        3.0/4.0, 1.0/4.0
+    );
+    
+    // Get screen position for dithering with displacement offset
+    vec2 displacedScreenPos = gl_FragCoord.xy + displacementOffset * 8.0; // Apply displacement to dither pattern
+    ivec2 screenPos = ivec2(displacedScreenPos);
+    int x = screenPos.x % 2;
+    int y = screenPos.y % 2;
+    
+    // Get dither threshold from matrix
+    float ditherThreshold = ditherMatrix[y][x];
+    
+    // Use dithering to choose between base color and textured overlay
+    vec3 finalColor3;
+    float finalAlpha;
+    
+    if (depthBlendFactor > ditherThreshold) {
+        // Show textured water with depth-based darkening and blue shift
+        
+        // Calculate depth factor for color modification (0 = shallow, 1 = deep)
+        float depthFactor = clamp((depth - 1.0) / 3.0, 0.0, 1.0);
+        
+        // Darken the texture based on depth
+        float darkenFactor = 1.0 - (depthFactor * 0.20); // Darken up to 60% in deep areas
+        vec3 darkenedTexture = textureColor * darkenFactor;
+        
+        // Shift texture towards deeper blue in deep areas
+        vec3 deepBlue = vec3(0.05, 0.5, 0.8); // Dark blue color for deep water
+        vec3 blueShiftedTexture = mix(darkenedTexture, darkenedTexture * deepBlue, depthFactor * 0.7);
+        
+        finalColor3 = blueShiftedTexture;
+        finalAlpha = alpha * textureColorWithAlpha.a; // Use texture alpha too
+    } else {
+        // Show base tinted color
+        finalColor3 = tintedBaseColor;
+        finalAlpha = alpha;
+    }
     
     // Apply depth-based alpha
-    finalColor = vec4(shiftedColor, alpha);
+    finalColor = vec4(finalColor3, finalAlpha);
 }

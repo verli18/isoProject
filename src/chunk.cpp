@@ -26,11 +26,11 @@ void Chunk::renderTerrain() {
 // Draw transparent water layer
 void Chunk::renderWater() {
     Vector3 pos = {(float)chunkX, 0.0f, (float)chunkY};
-    rlDisableDepthMask();
+    //rlDisableDepthMask();
     //rlDisableDepthTest();
     DrawModel(tiles.waterModel, pos, 1.0f, WHITE);
     //rlEnableDepthTest();
-    rlEnableDepthMask();
+    //rlEnableDepthMask();
 }
 
 // Draw terrain wireframe
@@ -54,7 +54,7 @@ void Chunk::generateMesh() {
 #ifdef TILEGRID_PROFILE
     auto t0 = clock::now();
 #endif
-    tiles.generatePerlinTerrain(1.0f, 18, 4, 0.25f, 2.0f, 1.0f, baseGenOffset);
+    tiles.generatePerlinTerrain(0.75f, 100, 4, 0.25f, 2.0f, 1.1f, baseGenOffset);
 #ifdef TILEGRID_PROFILE
     auto t1 = clock::now();
 #endif

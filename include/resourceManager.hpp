@@ -21,7 +21,7 @@ class sun{
         sunColor = {1.0f, 0.9f, 0.7f};       // Warm sun color
         ambientStrength = 0.5f;                 // Ambient light strength
         ambientColor = {0.4f, 0.5f, 0.8f};   // Cool ambient color
-        shiftIntensity = -0.10f;
+        shiftIntensity = -0.05f;
         shiftDisplacement = 1.86f;
     }
 };
@@ -52,8 +52,13 @@ public:
     
     // Update water depth-based alpha parameters
     static void updateWaterDepthParams(float minDepth, float maxDepth, float minAlpha, float maxAlpha);
+    
+    // Update water time for displacement animation
+    static void updateWaterTime(float time);
 
     static Texture2D terrainTexture;
+    static Texture2D waterTexture;
+    static Texture2D waterDisplacementTexture;
 private:
     // Prevent instantiation
     resourceManager() = delete;

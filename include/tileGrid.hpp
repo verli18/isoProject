@@ -1,7 +1,8 @@
 #include <vector>
 #include <raylib.h>
 #include <cstdint> // for uint64_t
-#include <FastNoise/FastNoise.h>
+#include "FastNoise/FastNoise.h"
+#include "FastNoise/Generators/DomainWarp.h"
 
 // Timing data for terrain pipeline phases
 struct PhaseAverages {
@@ -82,6 +83,9 @@ class tileGrid {
         int height;
         int depth;
         std::vector<std::vector<tile>> grid;
-        FastNoise::SmartNode<FastNoise::Simplex> fnSimplex;
         FastNoise::SmartNode<FastNoise::FractalFBm> fnFractal;
+        FastNoise::SmartNode<FastNoise::DomainWarpGradient> fnWarp;
+        FastNoise::SmartNode<FastNoise::FractalFBm> fnRegion;
+        FastNoise::SmartNode<FastNoise::FractalFBm> fnMoisture;
+        FastNoise::SmartNode<FastNoise::FractalFBm> fnTemperature;
 };

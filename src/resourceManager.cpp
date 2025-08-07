@@ -5,6 +5,8 @@ bool resourceManager::initialized = false;
 std::unordered_map<machineType, Model> resourceManager::machineModels;
 std::unordered_map<machineType, Texture2D> resourceManager::machineTextures;
 Texture2D resourceManager::terrainTexture = {0};
+Texture2D resourceManager::waterTexture = {0};
+Texture2D resourceManager::waterDisplacementTexture = {0};
 Shader resourceManager::terrainShader;
 Shader resourceManager::waterShader;
 std::unordered_map<machineType, std::string> resourceManager::modelPaths = {
@@ -31,6 +33,8 @@ void resourceManager::initialize() {
     // Load terrain and water shaders
     terrainShader = LoadShader("assets/shaders/terrainShader.vs", "assets/shaders/terrainShader.fs");
     waterShader   = LoadShader("assets/shaders/waterShader.vs",   "assets/shaders/waterShader.fs");
+    waterTexture = LoadTexture("assets/textures/water.png");
+    waterDisplacementTexture = LoadTexture("assets/textures/waterDisplacement.png");
     // Set default HSV shift for water shader
 
     float defaultShift = -0.1f;
@@ -127,6 +131,7 @@ void resourceManager::cleanup() {
     }
     
     UnloadTexture(itemTexture);
+    UnloadTexture(waterDisplacementTexture);
     UnloadShader(terrainShader);
     UnloadShader(waterShader);
 
@@ -179,4 +184,10 @@ void resourceManager::updateWaterDepthParams(float minDepth, float maxDepth, flo
     SetShaderValue(waterShader, locMaxDepth, &maxDepth, SHADER_UNIFORM_FLOAT);
     SetShaderValue(waterShader, locMinAlpha, &minAlpha, SHADER_UNIFORM_FLOAT);
     SetShaderValue(waterShader, locMaxAlpha, &maxAlpha, SHADER_UNIFORM_FLOAT);
+}
+
+// Update water time for displacement animation
+void resourceManager::updateWaterTime(float time) {
+    int locTime = GetShaderLocation(waterShader, "time");
+    SetShaderValue(waterShader, locTime, &time, SHADER_UNIFORM_FLOAT);
 }

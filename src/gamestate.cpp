@@ -85,6 +85,10 @@ void gameState::render() {
     BeginDrawing();
         BeginTextureMode(renderCanvas);
         ClearBackground(BLACK);
+        
+        // Update water shader time for displacement animation
+        resourceManager::updateWaterTime(GetTime());
+        
         BeginMode3D(camera);
         rlDisableBackfaceCulling();
         switch(renderMode) {

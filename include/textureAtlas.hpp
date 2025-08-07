@@ -14,7 +14,8 @@ enum {
   AIR = 0,
   GRASS,
   SNOW,
-  DIRT,
+  STONE,
+  SAND,
 };
 
 inline struct textureAtlas textures[] = {
@@ -22,7 +23,7 @@ inline struct textureAtlas textures[] = {
     {16, 16, 0, 0, 16, 0},
     {16, 16, 32, 0, 48, 0},
     {16, 16, 48, 0, 48, 0},
-};
+    {16, 16, 64, 0, 64, 0},};
 
 inline int textureCount = sizeof(textures) / sizeof(textures[0]);
 

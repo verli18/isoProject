@@ -2,20 +2,24 @@
 #include "raylib.h"
 #include "cmath"
 
-chunkManager::chunkManager(int loadRadius) : radius(loadRadius) {}
+chunkManager::chunkManager(int loadRadius) : radius(loadRadius), lastCenter({-99999, -99999}) {}
 chunkManager::~chunkManager() = default;
 
 void chunkManager::update(const Camera& cam) {
-    int centerX = static_cast<int>(cam.position.x) / CHUNKSIZE;
-    int centerY = static_cast<int>(cam.position.z) / CHUNKSIZE;
+    int centerX = static_cast<int>(floor(cam.position.x / CHUNKSIZE));
+    int centerY = static_cast<int>(floor(cam.position.z / CHUNKSIZE));
+
+    ChunkCoord currentCenter{centerX, centerY};
+    if (currentCenter == lastCenter) return;
 
     for(int dx = -radius; dx <= radius; ++dx) {
         for(int dy = -radius; dy <= radius; ++dy) {
-            ensureChunk(centerX + dx, centerY + dy);
+            ensureChunk(currentCenter.x + dx, currentCenter.y + dy);
         }
     }
 
-    unloadDistant({centerX, centerY});
+    unloadDistant(currentCenter);
+    lastCenter = currentCenter;
 }
 
 void chunkManager::render() {
@@ -23,9 +27,19 @@ void chunkManager::render() {
     for (auto& pair : chunks) {
         pair.second->renderTerrain();
     }
-    // Second pass: draw all transparent water layers
+    // Second pass: draw all transparent water layers in a stable order
+    // Gather chunks into a vector and sort by chunk coordinates
+    std::vector<std::pair<ChunkCoord, Chunk*>> items;
+    items.reserve(chunks.size());
     for (auto& pair : chunks) {
-        pair.second->renderWater();
+        items.emplace_back(pair.first, pair.second.get());
+    }
+    std::sort(items.begin(), items.end(), [](auto& a, auto& b) {
+        if (a.first.x != b.first.x) return a.first.x < b.first.x;
+        return a.first.y < b.first.y;
+    });
+    for (auto& entry : items) {
+        entry.second->renderWater();
     }
 }
 

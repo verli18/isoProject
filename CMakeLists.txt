@@ -16,7 +16,6 @@ option(ENABLE_UBSAN "Enable Undefined Behavior Sanitizer" OFF)
 
 # Find required packages
 find_package(PkgConfig REQUIRED)
-find_package(benchmark REQUIRED)
 pkg_check_modules(RAYLIB REQUIRED raylib)
 include_directories(${RAYLIB_INCLUDE_DIRS})
 
@@ -55,7 +54,6 @@ add_compile_definitions(TILEGRID_PROFILE)
 target_link_libraries(${PROJECT_NAME} 
     PRIVATE 
         ${RAYLIB_LIBRARIES}
-        benchmark::benchmark
         pthread
         FastNoise2
 )
