@@ -70,10 +70,13 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 
-# Copy assets to build directory
-file(COPY ${CMAKE_SOURCE_DIR}/textures.png DESTINATION ${CMAKE_BINARY_DIR})
-file(COPY ${CMAKE_SOURCE_DIR}/src/terrainShader.vs DESTINATION ${CMAKE_BINARY_DIR}/src)
-file(COPY ${CMAKE_SOURCE_DIR}/src/terrainShader.fs DESTINATION ${CMAKE_BINARY_DIR}/src)
+# Copy shaders only if they exist
+if(EXISTS ${CMAKE_SOURCE_DIR}/src/terrainShader.vs)
+    file(COPY ${CMAKE_SOURCE_DIR}/src/terrainShader.vs DESTINATION ${CMAKE_BINARY_DIR}/src)
+endif()
+if(EXISTS ${CMAKE_SOURCE_DIR}/src/terrainShader.fs)
+    file(COPY ${CMAKE_SOURCE_DIR}/src/terrainShader.fs DESTINATION ${CMAKE_BINARY_DIR}/src)
+endif()
 
 # Install target
 install(TARGETS ${PROJECT_NAME}
@@ -108,5 +111,5 @@ endif()
 if(MSVC)
     target_compile_options(${PROJECT_NAME} PRIVATE /W4 /WX)
 else()
-    target_compile_options(${PROJECT_NAME} PRIVATE -g -pg -Wall -Wextra -Wpedantic)
+    target_compile_options(${PROJECT_NAME} PRIVATE -g -pg -O3 -Wall -Wextra -Wpedantic)
 endif()

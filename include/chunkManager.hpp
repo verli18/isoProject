@@ -29,7 +29,7 @@ public:
     void update(const Camera& cam);
     void render();
     void renderWires();
-    void renderDataPoint(Color a, Color b, int tile::*dataMember);
+    void renderDataPoint(Color a, Color b, uint8_t tile::*dataMember);
     Chunk* getChunk(int cx, int cy);
     // Ray-pick across loaded chunks around camera; returns (globalX, globalZ, localHeight) or (-1,-1,-1) if none
     Vector3 pickTile(const Ray& ray, const Camera& cam);

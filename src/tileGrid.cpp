@@ -11,8 +11,10 @@
 // Moved into tileGrid class
 
 #include <map>
+#include <queue>
+#include <algorithm>
 
-Color lerp(Color a, Color b, int t) {
+Color lerp(Color a, Color b, uint8_t t) {
     return Color{static_cast<unsigned char>(a.r + (b.r - a.r) * t / 255), static_cast<unsigned char>(a.g + (b.g - a.g) * t / 255), static_cast<unsigned char>(a.b + (b.b - a.b) * t / 255), 255};
 }
 
@@ -71,6 +73,14 @@ tileGrid::tileGrid(int width, int height) : width(width), height(height) {
     // Region map generator
     fnRegion = FastNoise::New<FastNoise::FractalFBm>();
     fnRegion->SetSource(FastNoise::New<FastNoise::Simplex>());
+
+    // Magmatic potential map generator
+    fnMagmatic = FastNoise::New<FastNoise::FractalFBm>();
+    fnMagmatic->SetSource(FastNoise::New<FastNoise::Simplex>());
+
+    // Biological potential map generator
+    fnBiological = FastNoise::New<FastNoise::FractalFBm>();
+    fnBiological->SetSource(FastNoise::New<FastNoise::Simplex>());
 }
 
 tileGrid::~tileGrid() {
@@ -120,13 +130,21 @@ void tileGrid::generatePerlinTerrain(float scale, int heightCo,
     fnTemperature->SetGain(0.4f);
     fnTemperature->SetLacunarity(2.5f);
 
-    fnRegion->SetOctaveCount(2);
+    fnRegion->SetOctaveCount(3);
     fnRegion->SetGain(0.5f);
     fnRegion->SetLacunarity(2.0f);
 
+    fnMagmatic->SetOctaveCount(3);
+    fnMagmatic->SetGain(0.5f);
+    fnMagmatic->SetLacunarity(2.0f);
+
+    fnBiological->SetOctaveCount(4);
+    fnBiological->SetGain(0.5f);
+    fnBiological->SetLacunarity(2.0f);
+
     // Configure Domain Warp
-    fnWarp->SetWarpAmplitude(30.0f);
-    fnWarp->SetWarpFrequency(0.05f);
+    fnWarp->SetWarpAmplitude(10.0f);
+    fnWarp->SetWarpFrequency(0.02f);
 
     // Generate noise data using FastNoise2
     std::vector<float> heightMap( (width + 1) * (height + 1));
@@ -136,11 +154,24 @@ void tileGrid::generatePerlinTerrain(float scale, int heightCo,
     fnRegion->GenUniformGrid2D(regionMap.data(), baseGenOffset[0], baseGenOffset[1], width + 1, height + 1, 0.002f * scale, 1337);
 
     std::vector<float> moistureMap(width * height);
-    fnMoisture->GenUniformGrid2D(moistureMap.data(), baseGenOffset[0], baseGenOffset[1], width, height, 0.01f * scale, 1338);
+    fnMoisture->GenUniformGrid2D(moistureMap.data(), baseGenOffset[0], baseGenOffset[1], width, height, 0.005f * scale, 1338);
 
     std::vector<float> temperatureMap(width * height);
     fnTemperature->GenUniformGrid2D(temperatureMap.data(), baseGenOffset[0], baseGenOffset[1], width, height, 0.01f * scale, 1339);
 
+    std::vector<float> magmaticMap(width * height);
+    fnMagmatic->GenUniformGrid2D(magmaticMap.data(), baseGenOffset[0], baseGenOffset[1], width, height, 0.02f * scale, 1340);
+
+    std::vector<float> biologicalMap(width * height);
+    fnBiological->GenUniformGrid2D(biologicalMap.data(), baseGenOffset[0], baseGenOffset[1], width, height, 0.05f * scale, 1341);
+
+
+    // Preallocate helpers for hydrology
+    const int N = width * height;
+    std::vector<float> groundElev(N, 0.0f);
+    std::vector<uint8_t> moist(N, 0);
+    std::vector<uint8_t> temp(N, 0);
+    auto idx = [this](int x, int y) { return y * this->width + x; };
 
     for (int x = 0; x < width; ++x) {
         for (int y = 0; y < height; ++y) {
@@ -182,12 +213,25 @@ void tileGrid::generatePerlinTerrain(float scale, int heightCo,
 
             // Modify by altitude
             const float altitudeEffect = avgH * 2.0f;
-            t.moisture = static_cast<int>(baseMoisture - altitudeEffect);
-            t.temperature = static_cast<int>(baseTemperature - altitudeEffect);
+            float finalMoisture = baseMoisture - altitudeEffect;
+            float finalTemperature = baseTemperature - altitudeEffect;
 
             // Clamp values
-            t.moisture = std::max(0, std::min(255, t.moisture));
-            t.temperature = std::max(0, std::min(255, t.temperature));
+            t.moisture = static_cast<uint8_t>(std::max(0.0f, std::min(255.0f, finalMoisture)));
+            t.temperature = static_cast<uint8_t>(std::max(0.0f, std::min(255.0f, finalTemperature)));
+
+            // Magmatic potential influenced by slope
+            float min_h = t.tileHeight[0];
+            float max_h = t.tileHeight[0];
+            for(int i = 1; i < 4; ++i) {
+                if(t.tileHeight[i] < min_h) min_h = t.tileHeight[i];
+                if(t.tileHeight[i] > max_h) max_h = t.tileHeight[i];
+            }
+            float slope = max_h - min_h;
+
+            float baseMagmatic = (magmaticMap[y * width + x] + 1.0f) / 2.0f; // Normalized 0-1
+            float modifiedMagmatic = baseMagmatic + slope * 0.15f; // Add 15% of the slope value
+            t.magmaticPotential = static_cast<uint8_t>(std::max(0.0f, std::min(1.0f, modifiedMagmatic)) * 255.0f);
 
             // Biome selection
             if (t.temperature < 40) {
@@ -199,29 +243,242 @@ void tileGrid::generatePerlinTerrain(float scale, int heightCo,
             } else {
                 t.type = GRASS; // Default -> Temperate Plains/Forest
             }
+            // Initialize; hydrology will set water/hydro later
+            t.waterLevel = 0;
+            t.hydrologicalPotential = 0;
 
-
-            const float waterPlane = (float)heightCo * 0.45f; 
-            const float maxWaterLevel = (float)heightCo;      
-            float desiredWaterY = waterPlane - 0.5f;
             float avgHeight = (t.tileHeight[0] + t.tileHeight[1] + t.tileHeight[2] + t.tileHeight[3]) / 4.0f;
-            float minHeight = fminf(fminf(t.tileHeight[0], t.tileHeight[1]), fminf(t.tileHeight[2], t.tileHeight[3]));
-            float effectiveHeight = (minHeight + avgHeight) / 2.0f;
+            groundElev[idx(x,y)] = avgHeight;
+            moist[idx(x,y)] = t.moisture;
+            temp[idx(x,y)] = t.temperature;
 
-            // Only place water if threshold is above the effective terrain height
-            if (desiredWaterY > effectiveHeight - 0.5f) {
-                float clampedY = fminf(desiredWaterY, maxWaterLevel);
-                int quantized = (int)roundf(clampedY * 2.0f); // half-units
-                t.waterLevel = quantized;
-                
-                if (effectiveHeight + 1 < desiredWaterY) t.type = STONE;
-                else if (effectiveHeight - 0.75f < desiredWaterY) t.type = SAND;
+            setTile(x, y, t);
+        }
+    }
+
+    // Hydrology pass: priority-flood depression filling on ground elevation
+    struct PFCell { int x, y; float level; };
+    struct Cmp { bool operator()(const PFCell& a, const PFCell& b) const { return a.level > b.level; } };
+    std::priority_queue<PFCell, std::vector<PFCell>, Cmp> pq;
+    std::vector<uint8_t> visited(N, 0);
+    std::vector<float> filled(N, 0.0f);
+
+    // Seed with border cells (act as outlets to outside world)
+    for (int x = 0; x < width; ++x) {
+        int i0 = idx(x, 0);
+        int i1 = idx(x, height - 1);
+        pq.push({x, 0, groundElev[i0]}); visited[i0] = 1; filled[i0] = groundElev[i0];
+        pq.push({x, height - 1, groundElev[i1]}); visited[i1] = 1; filled[i1] = groundElev[i1];
+    }
+    for (int y = 1; y < height - 1; ++y) {
+        int i0 = idx(0, y);
+        int i1 = idx(width - 1, y);
+        pq.push({0, y, groundElev[i0]}); visited[i0] = 1; filled[i0] = groundElev[i0];
+        pq.push({width - 1, y, groundElev[i1]}); visited[i1] = 1; filled[i1] = groundElev[i1];
+    }
+
+    const int dx4[4] = {1,-1,0,0};
+    const int dy4[4] = {0,0,1,-1};
+    while (!pq.empty()) {
+        PFCell c = pq.top(); pq.pop();
+        for (int k = 0; k < 4; ++k) {
+            int nx = c.x + dx4[k];
+            int ny = c.y + dy4[k];
+            if (nx < 0 || nx >= width || ny < 0 || ny >= height) continue;
+            int ni = idx(nx, ny);
+            if (visited[ni]) continue;
+            visited[ni] = 1;
+            float g = groundElev[ni];
+            float f = std::max(g, c.level);
+            filled[ni] = f;
+            pq.push({nx, ny, f});
+        }
+    }
+
+    // Determine water presence using a climate-dependent minimum depth threshold
+    std::vector<float> waterDepth(N, 0.0f);
+    for (int y = 0; y < height; ++y) {
+        for (int x = 0; x < width; ++x) {
+            int i = idx(x, y);
+            float rawDepth = std::max(0.0f, filled[i] - groundElev[i]);
+            // Global control over overall water magnitude
+            rawDepth *= std::max(0.0f, waterParams.waterAmountScale);
+            float m = moist[i] / 255.0f;
+            float tnorm = temp[i] / 255.0f;
+            float evap = std::clamp((tnorm - waterParams.evapStart) / std::max(0.0001f, waterParams.evapRange), 0.0f, 1.0f);
+            float dryness = (1.0f - m);
+            // Threshold increases with dryness and evaporation pressure
+            float minDepth = waterParams.minDepthBase
+                           + waterParams.drynessCoeff * dryness
+                           + waterParams.evapCoeff    * evap;
+            waterDepth[i] = (rawDepth >= minDepth) ? rawDepth : 0.0f;
+        }
+    }
+
+    // Flatten lakes: group contiguous water tiles (4-neigh) with similar filled level and assign a single plateau per group
+    std::vector<float> waterSurfaceY(N, 0.0f);
+    std::vector<int> comp(N, -1);
+    int compId = 0;
+    const float levelEps = 0.01f; // tolerance for same-lake level
+    std::vector<int> q;
+    q.reserve(N);
+    for (int y = 0; y < height; ++y) {
+        for (int x = 0; x < width; ++x) {
+            int i = idx(x, y);
+            if (waterDepth[i] <= 0.01f || comp[i] != -1) continue;
+            // I am honestly surprised this works
+            q.clear();
+            q.push_back(i); comp[i] = compId;
+            float sumLvl = 0.0f; int cnt = 0;
+            size_t head = 0;
+            while (head < q.size()) {
+                int cur = q[head++];
+                sumLvl += filled[cur]; cnt++;
+                int cx = cur % width; int cy = cur / width;
+                for (int k = 0; k < 4; ++k) {
+                    int nx = cx + dx4[k];
+                    int ny = cy + dy4[k];
+                    if (nx < 0 || nx >= width || ny < 0 || ny >= height) continue;
+                    int ni = idx(nx, ny);
+                    if (comp[ni] != -1) continue;
+                    if (waterDepth[ni] <= 0.01f) continue;
+                    if (fabsf(filled[ni] - filled[cur]) <= levelEps) {
+                        comp[ni] = compId;
+                        q.push_back(ni);
+                    }
+                }
+            }
+            float plateau = (cnt > 0) ? (sumLvl / (float)cnt) : filled[i];
+            // Quantize plateau to half-unit for stability between neighbors
+            plateau = roundf(plateau * 2.0f) / 2.0f;
+            for (int id : q) waterSurfaceY[id] = plateau;
+            compId++;
+        }
+    }
+
+    // Assign water level back to tiles using per-lake plateau
+    for (int y = 0; y < height; ++y) {
+        for (int x = 0; x < width; ++x) {
+            int i = idx(x, y);
+            tile t = getTile(x, y);
+            if (waterDepth[i] > 0.01f) {
+                float waterY = (comp[i] >= 0) ? waterSurfaceY[i] : filled[i];
+                int quantized = (int)roundf(waterY * 2.0f);
+                quantized = std::clamp(quantized, 0, heightCo * 2) - 1;
+                t.waterLevel = (uint8_t)quantized;
+                // Shore tweak: sand near water edges
+                float minCorner = fminf(fminf(t.tileHeight[0], t.tileHeight[1]), fminf(t.tileHeight[2], t.tileHeight[3]));
+                if (waterY > minCorner - 0.25f && waterY < minCorner + 0.5f) {
+                    t.type = SAND;
+                }
             } else {
                 t.waterLevel = 0;
             }
+            setTile(x, y, t);
+        }
+    }
 
-            // Default lighting placeholder
-            t.lighting[0] = WHITE;
+    // Flow accumulation (D8) on filled surface to derive hydrologicalPotential
+    const int dx8[8] = {1,1,0,-1,-1,-1,0,1};
+    const int dy8[8] = {0,1,1,1,0,-1,-1,-1};
+    std::vector<int> receiver(N, -1);
+    for (int y = 0; y < height; ++y) {
+        for (int x = 0; x < width; ++x) {
+            int i = idx(x, y);
+            float elev = filled[i];
+            float bestDrop = 0.0f;
+            int bestIdx = -1;
+            for (int k = 0; k < 8; ++k) {
+                int nx = x + dx8[k];
+                int ny = y + dy8[k];
+                if (nx < 0 || nx >= width || ny < 0 || ny >= height) continue;
+                int ni = idx(nx, ny);
+                float drop = elev - filled[ni];
+                if (drop > bestDrop) { bestDrop = drop; bestIdx = ni; }
+            }                     
+            receiver[i] = bestIdx; // -1 indicates pit/outlet
+        }
+    }
+
+    // Topological order by filled elevation ascending
+    std::vector<int> order(N);
+    for (int i = 0; i < N; ++i) order[i] = i;
+    std::sort(order.begin(), order.end(), [&](int a, int b){ return filled[a] < filled[b]; });
+
+    std::vector<float> acc(N, 1.0f); // uniform rainfall
+    for (int i = 0; i < N; ++i) {
+        int c = order[i];
+        int r = receiver[c];
+        if (r >= 0) acc[r] += acc[c];
+    }
+
+    float maxAcc = 0.0f; for (float a : acc) if (a > maxAcc) maxAcc = a;
+    float logMax = logf(maxAcc + 1.0f);
+
+    // Add slope weighting to make channels more coherent
+    std::vector<float> slopeW(N, 0.0f);
+    for (int y = 0; y < height; ++y) {
+        for (int x = 0; x < width; ++x) {
+            int i = idx(x, y);
+            float here = groundElev[i];
+            float minN = here;
+            for (int k = 0; k < 8; ++k) {
+                int nx = x + dx8[k];
+                int ny = y + dy8[k];
+                if (nx < 0 || nx >= width || ny < 0 || ny >= height) continue;
+                minN = std::min(minN, groundElev[idx(nx, ny)]);
+            }
+            float s = std::max(0.0f, here - minN); // local drop
+            slopeW[i] = std::clamp(s / 2.0f, 0.0f, 1.0f); // normalize assuming <=2 units typical between neighbors
+        }
+    }
+
+    std::vector<float> hydroN(N, 0.0f);
+    for (int y = 0; y < height; ++y) {
+        for (int x = 0; x < width; ++x) {
+            int i = idx(x, y);
+            float norm = (logf(acc[i] + 1.0f) / (logMax > 0 ? logMax : 1.0f));
+            float m = moist[i] / 255.0f;
+            float hydro = norm * (0.5f + 0.5f * m) * (0.4f + 0.6f * slopeW[i]);
+            hydroN[i] = std::clamp(hydro, 0.0f, 1.0f);
+        }
+    }
+
+    // Light 3x3 blur to smooth speckles (1 iteration)
+    std::vector<float> hydroBlur(N, 0.0f);
+    for (int y = 0; y < height; ++y) {
+        for (int x = 0; x < width; ++x) {
+            float sum = 0.0f; int cnt = 0;
+            for (int oy = -1; oy <= 1; ++oy) {
+                for (int ox = -1; ox <= 1; ++ox) {
+                    int nx = x + ox, ny = y + oy;
+                    if (nx < 0 || nx >= width || ny < 0 || ny >= height) continue;
+                    sum += hydroN[idx(nx, ny)]; cnt++;
+                }
+            }
+            hydroBlur[idx(x, y)] = sum / std::max(1, cnt);
+        }
+    }
+
+    for (int y = 0; y < height; ++y) {
+        for (int x = 0; x < width; ++x) {
+            tile t = getTile(x, y);
+            t.hydrologicalPotential = (uint8_t)std::round(std::clamp(hydroBlur[idx(x, y)], 0.0f, 1.0f) * 255.0f);
+
+            // --- Biological Potential ---
+            float baseBio = (biologicalMap[idx(x, y)] + 1.0f) / 2.0f; // 0-1 from noise
+            float moistureFactor = t.moisture / 127.0f; // 0-1 moisture factor
+            float hydroFactor = t.hydrologicalPotential / 127.0f;
+
+            // Temperature suitability (ideal around 128, falls off towards 0 and 255)
+            float tempDist = std::abs(t.temperature - 128.0f) / 128.0f; // 0 at ideal, 1 at extremes
+            float tempFactor = 1.0f - tempDist;
+
+            // Combine factors
+            float finalBio = baseBio * moistureFactor * (0.5f + hydroFactor * 0.5f);
+            
+            t.biologicalPotential = (uint8_t)std::round(std::clamp(finalBio, 0.0f, 1.0f) * 255.0f);
+
             setTile(x, y, t);
         }
     }
@@ -275,14 +532,14 @@ void tileGrid::renderWires() {
             Vector3 v2 = {(float)x + 1, (float)t.tileHeight[2], (float)y + 1};
             Vector3 v3 = {(float)x,     (float)t.tileHeight[3], (float)y + 1};
             // Draw two triangles for the top face
-            DrawLine3D(v2, v1, t.lighting[0]);
-            DrawLine3D(v3, v2, t.lighting[0]);
-            DrawLine3D(v3, v0, t.lighting[0]);
+            DrawLine3D(v2, v1, WHITE);
+            DrawLine3D(v3, v2, WHITE);
+            DrawLine3D(v3, v0, WHITE);
         }
     }
 }
 
-void tileGrid::renderDataPoint(Color a, Color b, int tile::*dataMember, int chunkX, int chunkY) {
+void tileGrid::renderDataPoint(Color a, Color b, uint8_t tile::*dataMember, int chunkX, int chunkY) {
     for (int x = 0; x < width; x++) {
         for (int y = 0; y < height; y++) {
             tile t = getTile(x, y);
@@ -532,14 +789,6 @@ void tileGrid::generateMesh() {
     // Assign shared terrain shader
     Shader& shader = resourceManager::getShader(0);
     model.materials[0].shader = shader;
-
-#ifdef TILEGRID_PROFILE
-    auto t1 = clock::now();
-    double meshMs = std::chrono::duration<double, std::milli>(t1 - t0).count();
-    lastTimings.samplesMesh++;
-    double nMesh = static_cast<double>(lastTimings.samplesMesh);
-    lastTimings.meshGenMs += (meshMs - lastTimings.meshGenMs) / std::max(1.0, nMesh);
-#endif
 }
 
 void tileGrid::updateLighting(Vector3 sunDirection, Vector3 sunColor, float ambientStrength, Vector3 ambientColor, float shiftIntensity, float shiftDisplacement) {
@@ -564,11 +813,43 @@ void tileGrid::generateWaterMesh() {
     std::vector<float> baseHeights;
     vertices.reserve(width * height * 6);
     normals.reserve(width * height * 6);
+
+    // Expand water outward by a small padding to hide seams against terrain
+    const int pad = waterParams.waterPad; // tiles of outward expansion
+    const float skirtEpsilon = waterParams.waterSkirt; // allow water to overlap slightly onto shore
+    const int N = width * height;
+    auto idx2 = [this](int x, int y){ return y * this->width + x; };
+    std::vector<uint8_t> waterLvl(N, 0);
+    std::vector<uint8_t> dilatedLvl(N, 0);
     for (int x = 0; x < width; ++x) {
         for (int y = 0; y < height; ++y) {
             tile t = getTile(x, y);
-            if (t.waterLevel <= 0) continue;
-            float waterY = 0.5f * (float)t.waterLevel;
+            waterLvl[idx2(x,y)] = t.waterLevel; // 0..(heightCo*2)
+        }
+    }
+    // Morphological dilation (max level within pad neighborhood)
+    for (int x = 0; x < width; ++x) {
+        for (int y = 0; y < height; ++y) {
+            uint8_t maxLevel = waterLvl[idx2(x,y)];
+            if (maxLevel == 0) {
+                for (int ox = -pad; ox <= pad; ++ox) {
+                    for (int oy = -pad; oy <= pad; ++oy) {
+                        int nx = x + ox, ny = y + oy;
+                        if (nx < 0 || nx >= width || ny < 0 || ny >= height) continue;
+                        uint8_t wl = waterLvl[idx2(nx, ny)];
+                        if (wl > maxLevel) maxLevel = wl;
+                    }
+                }
+            }
+            dilatedLvl[idx2(x,y)] = maxLevel;
+        }
+    }
+    for (int x = 0; x < width; ++x) {
+        for (int y = 0; y < height; ++y) {
+            tile t = getTile(x, y);
+            uint8_t level = dilatedLvl[idx2(x,y)];
+            if (level == 0) continue;
+            float waterY = 0.5f * (float)level;
             // Define water quad corners at flat waterY
             Vector3 v0 = {(float)x,     waterY+0.1f, (float)y};
             Vector3 v1 = {(float)x + 1, waterY+0.1f, (float)y};
@@ -576,13 +857,13 @@ void tileGrid::generateWaterMesh() {
             Vector3 v3 = {(float)x,     waterY+0.1f, (float)y + 1};
             // Emit diagonal triangles where water plane exceeds terrain height at ANY corner
             // Triangle A: v2, v1, v0 (corners 2,1,0)
-            if (waterY >= t.tileHeight[2] || waterY >= t.tileHeight[1] || waterY >= t.tileHeight[0]) {
+            if (waterY + skirtEpsilon >= t.tileHeight[2] || waterY + skirtEpsilon >= t.tileHeight[1] || waterY + skirtEpsilon >= t.tileHeight[0]) {
                 vertices.push_back(v2); vertices.push_back(v1); vertices.push_back(v0);
                 normals.push_back({0,1,0}); normals.push_back({0,1,0}); normals.push_back({0,1,0});
                 baseHeights.push_back(t.tileHeight[2]); baseHeights.push_back(t.tileHeight[1]); baseHeights.push_back(t.tileHeight[0]);
             }
             // Triangle B: v3, v2, v0 (corners 3,2,0)
-            if (waterY >= t.tileHeight[3] || waterY >= t.tileHeight[2] || waterY >= t.tileHeight[0]) {
+            if (waterY + skirtEpsilon >= t.tileHeight[3] || waterY + skirtEpsilon >= t.tileHeight[2] || waterY + skirtEpsilon >= t.tileHeight[0]) {
                 vertices.push_back(v3); vertices.push_back(v2); vertices.push_back(v0);
                 normals.push_back({0,1,0}); normals.push_back({0,1,0}); normals.push_back({0,1,0});
                 baseHeights.push_back(t.tileHeight[3]); baseHeights.push_back(t.tileHeight[2]); baseHeights.push_back(t.tileHeight[0]);
@@ -639,12 +920,4 @@ void tileGrid::generateWaterMesh() {
         waterModel.materials[i].maps[MATERIAL_MAP_NORMAL].texture = resourceManager::waterDisplacementTexture; // Use normal map slot for displacement
         waterModel.materials[i].shader = resourceManager::getShader(1);
     }
-
-#ifdef TILEGRID_PROFILE
-    auto t1 = clock::now();
-    double waterMs = std::chrono::duration<double, std::milli>(t1 - t0).count();
-    lastTimings.samplesWater++;
-    double nWater = static_cast<double>(lastTimings.samplesWater);
-    lastTimings.waterGenMs += (waterMs - lastTimings.waterGenMs) / std::max(1.0, nWater);
-#endif
 }

@@ -104,8 +104,12 @@ void gameState::render() {
              break;
             case 2:
                 switch (debugOpt) {
-                    case 0: world.renderDataPoint({20,20,200}, {240, 234, 100}, &tile::moisture); break;
-                    case 1: world.renderDataPoint({50,20,190}, {240, 30, 10}, &tile::temperature); break;
+                    case 0: world.renderDataPoint({206,220,176}, {21,106,125}, &tile::moisture); break;
+                    case 1: world.renderDataPoint({20,57,109}, {201,66,46}, &tile::temperature); break;
+                    case 2: world.renderDataPoint({79,5,37}, {198,93,15}, &tile::magmaticPotential); break;
+                    case 3: world.renderDataPoint({20,20,200}, {240,234,100}, &tile::sulfidePotential); break;
+                    case 4: world.renderDataPoint({20,20,200}, {240,234,100}, &tile::hydrologicalPotential); break;
+                    case 5: world.renderDataPoint({20,20,200}, {240,234,100}, &tile::biologicalPotential); break;
                 }
              break;
         }
@@ -124,24 +128,8 @@ void gameState::render() {
         ImGui::RadioButton("wireframe", &renderMode, 0);
         ImGui::RadioButton("mesh", &renderMode, 1);
         ImGui::RadioButton("debug", &renderMode, 2);
-        ImGui::Combo("mode", &debugOpt, "moisture\0temperature\0");
+        ImGui::Combo("mode", &debugOpt, "moisture\0temperature\0magmatic potential\0sulfide potential\0hydrological potential\0biological potential\0");
 
-#ifdef TILEGRID_PROFILE
-        // Show timing for center chunk (0,0)
-        {
-            Chunk* centerChunk = world.getChunk(0, 0);
-            if (centerChunk) {
-                PhaseAverages pa = centerChunk->tiles.lastTimings;
-                ImGui::SeparatorText("Chunk (0,0) Timings (ms)");
-                ImGui::Text("Noise textures:       %.3f  (n=%llu)", pa.noiseGenMs, (unsigned long long)pa.samplesNoise);
-                ImGui::Text("Indexing/colors:      %.3f  (n=%llu)", pa.indexingMs, (unsigned long long)pa.samplesIndex);
-                ImGui::Text("Mesh generation:      %.3f  (n=%llu)", pa.meshGenMs, (unsigned long long)pa.samplesMesh);
-                ImGui::Text("Water mesh:           %.3f  (n=%llu)", pa.waterGenMs, (unsigned long long)pa.samplesWater);
-                ImGui::Text("Temp/Moist sampling:  %.3f  (n=%llu)", pa.tempMoistSampleMs, (unsigned long long)pa.samplesTempMoist);
-            }
-        }
-#endif
-    
         ImGui::End();
         rlImGuiEnd();
         EndTextureMode();

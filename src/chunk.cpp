@@ -51,36 +51,11 @@ void Chunk::generateMesh() {
 
     int baseGenOffset[6] = {chunkX, chunkY, chunkX+1000, chunkY+1000, chunkX+2000, chunkY+2000};
 
-#ifdef TILEGRID_PROFILE
-    auto t0 = clock::now();
-#endif
-    tiles.generatePerlinTerrain(0.75f, 100, 4, 0.25f, 2.0f, 1.1f, baseGenOffset);
-#ifdef TILEGRID_PROFILE
-    auto t1 = clock::now();
-#endif
+    tiles.generatePerlinTerrain(0.75f, 70, 4, 0.25f, 2.0f, 1.2f, baseGenOffset);
 
-#ifdef TILEGRID_PROFILE
-    auto tMesh0 = clock::now();
-#endif
     tiles.generateMesh();
-#ifdef TILEGRID_PROFILE
-    auto tMesh1 = clock::now();
-#endif
-
-#ifdef TILEGRID_PROFILE
-    auto tWater0 = clock::now();
-#endif
     tiles.generateWaterMesh();
-#ifdef TILEGRID_PROFILE
-    auto tWater1 = clock::now();
-    // Accumulate per-chunk snapshot into tileGrid's lastTimings fields that were set internally
-    tiles.lastTimings.meshGenMs = std::chrono::duration<double, std::milli>(tMesh1 - tMesh0).count();
-    tiles.lastTimings.samplesMesh++;
-    // Terrain phase (noise+index) already captured inside tileGrid::generatePerlinTerrain
-    // Water mesh timing just measured here:
-    tiles.lastTimings.waterGenMs = std::chrono::duration<double, std::milli>(tWater1 - tWater0).count();
-    tiles.lastTimings.samplesWater++;
-#endif
+
 
     model = tiles.model;
     Shader& shader = resourceManager::getShader(0);

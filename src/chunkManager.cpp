@@ -43,7 +43,7 @@ void chunkManager::render() {
     }
 }
 
-void chunkManager::renderDataPoint(Color a, Color b, int tile::*dataMember) {
+void chunkManager::renderDataPoint(Color a, Color b, uint8_t tile::*dataMember) {
     for(auto& pair : chunks) {
         pair.second->tiles.renderDataPoint(a, b, dataMember, pair.first.x * CHUNKSIZE, pair.first.y * CHUNKSIZE);
     }
