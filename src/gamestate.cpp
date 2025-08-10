@@ -107,9 +107,9 @@ void gameState::render() {
                     case 0: world.renderDataPoint({206,220,176}, {21,106,125}, &tile::moisture); break;
                     case 1: world.renderDataPoint({20,57,109}, {201,66,46}, &tile::temperature); break;
                     case 2: world.renderDataPoint({79,5,37}, {198,93,15}, &tile::magmaticPotential); break;
-                    case 3: world.renderDataPoint({20,20,200}, {240,234,100}, &tile::sulfidePotential); break;
-                    case 4: world.renderDataPoint({20,20,200}, {240,234,100}, &tile::hydrologicalPotential); break;
-                    case 5: world.renderDataPoint({20,20,200}, {240,234,100}, &tile::biologicalPotential); break;
+                    case 3: world.renderDataPoint({79,5,37}, {209,204,103}, &tile::sulfidePotential); break;
+                    case 4: world.renderDataPoint({206,220,176}, {27,86,122}, &tile::hydrologicalPotential); break;
+                    case 5: world.renderDataPoint({3,39,43}, {122,157,55}, &tile::biologicalPotential); break;
                 }
              break;
         }

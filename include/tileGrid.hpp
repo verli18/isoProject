@@ -3,26 +3,20 @@
 #include <cstdint> // for uint64_t
 #include "FastNoise/FastNoise.h"
 #include "FastNoise/Generators/DomainWarp.h"
+#include "resourceManager.hpp"
 
 
 // Tunable parameters for water and hydrology generation
 struct WaterParams {
-    // Climate -> water presence thresholding
-    float minDepthBase = 0.05f;       // baseline minimum depth to keep water
-    float drynessCoeff = 0.20f;       // additional min depth per unit dryness (1 - moisture)
-    float evapCoeff    = 0.20f;       // additional min depth per unit evaporation
-    float evapStart    = 0.70f;       // normalized temperature where evaporation starts
-    float evapRange    = 0.30f;       // range to reach full evaporation effect
-    float waterAmountScale = 1.0f;    // scales raw lake depth before thresholding
-
-    // Water mesh skirt to hide terrain seams
-    int   waterPad       = 2;         // tiles to dilate water outward in mesh
-    float waterSkirt     = 0.5f;      // epsilon overlap above terrain when deciding coverage
-
-    // Hydrological potential smoothing/weighting
-    int   hydroBlurIters = 1;         // 0..3 recommended
-    float hydroSlopeIntercept = 0.4f; // factor in (intercept + weight*slope)
-    float hydroSlopeWeight    = 0.6f; // weight for local slope contribution
+    float waterAmountScale = 1.0f;
+    float minDepthBase = 0.0f;
+    float drynessCoeff = 0.0f;
+    float evapCoeff = 0.0f;
+    float evapStart = 0.0f;
+    float evapRange = 1.0f;
+    int waterPad = 0;
+    float waterSkirt = 0.0f;
+    float seaLevelThreshold = 30.0f; // Default to a very low value so it doesn't interfere by default
 };
 
 class machine;
@@ -46,6 +40,7 @@ struct tile{
 
     // Machine data
     machine* occupyingMachine = nullptr; // Pointer to machine on this tile
+    machineTileOffset tileOffset;
 };
 
 class tileGrid {
@@ -69,6 +64,8 @@ class tileGrid {
         Mesh mesh;
         Mesh waterMesh;
 
+        tileGrid* neighborChunks[8];
+        
         unsigned int getWidth();
         unsigned int getHeight();
         unsigned int getDepth();
@@ -104,4 +101,5 @@ class tileGrid {
         FastNoise::SmartNode<FastNoise::FractalFBm> fnTemperature;
         FastNoise::SmartNode<FastNoise::FractalFBm> fnMagmatic;
         FastNoise::SmartNode<FastNoise::FractalFBm> fnBiological;
+        FastNoise::SmartNode<FastNoise::FractalFBm> fnSulfide;
 };

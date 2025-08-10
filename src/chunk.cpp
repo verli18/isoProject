@@ -51,7 +51,7 @@ void Chunk::generateMesh() {
 
     int baseGenOffset[6] = {chunkX, chunkY, chunkX+1000, chunkY+1000, chunkX+2000, chunkY+2000};
 
-    tiles.generatePerlinTerrain(0.75f, 70, 4, 0.25f, 2.0f, 1.2f, baseGenOffset);
+    tiles.generatePerlinTerrain(0.75f, 90, 4, 0.25f, 2.0f, 1.2f, baseGenOffset);
 
     tiles.generateMesh();
     tiles.generateWaterMesh();

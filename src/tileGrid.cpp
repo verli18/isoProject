@@ -8,6 +8,9 @@
 #include <chrono>
 #include <FastNoise/FastNoise.h>
 
+#pragma GCC diagnostic ignored "-Wchar-subscripts"
+#pragma GCC diagnostic ignored "-Wunused-parameter"
+#pragma GCC diagnostic ignored "-Wmissing-field-initializers"
 // Moved into tileGrid class
 
 #include <map>
@@ -81,6 +84,10 @@ tileGrid::tileGrid(int width, int height) : width(width), height(height) {
     // Biological potential map generator
     fnBiological = FastNoise::New<FastNoise::FractalFBm>();
     fnBiological->SetSource(FastNoise::New<FastNoise::Simplex>());
+
+    // Sulfide potential map generator
+    fnSulfide = FastNoise::New<FastNoise::FractalFBm>();
+    fnSulfide->SetSource(FastNoise::New<FastNoise::Simplex>());
 }
 
 tileGrid::~tileGrid() {
@@ -95,18 +102,27 @@ tile tileGrid::getTile(int x, int y) {
 }
 
 bool tileGrid::placeMachine(int x, int y, machine* machinePtr) {
-    // Check if coordinates are valid
-    if (x < 0 || x >= width || y < 0 || y >= height) {
-        return false;
-    }
-    
+
     // Check if tile is already occupied
     if (grid[y][x].occupyingMachine != nullptr) {
         return false;
     }
     
     // Place the machine
-    grid[y][x].occupyingMachine = machinePtr;
+    for(machineTileOffset offset : machinePtr->tileOffsets) {
+        if (x + offset.x < 0 || x + offset.x >= width || y + offset.y < 0 || y + offset.y >= height) {
+            return false;
+        }
+        if (grid[y + offset.y][x + offset.x].occupyingMachine != nullptr) {
+            return false;
+        }
+    }
+    
+    // Place the machine
+    for(machineTileOffset offset : machinePtr->tileOffsets) {
+        grid[y + offset.y][x + offset.x].occupyingMachine = machinePtr;
+    }
+
     return true;
 }
 
@@ -142,6 +158,10 @@ void tileGrid::generatePerlinTerrain(float scale, int heightCo,
     fnBiological->SetGain(0.5f);
     fnBiological->SetLacunarity(2.0f);
 
+    fnSulfide->SetOctaveCount(3);
+    fnSulfide->SetGain(0.5f);
+    fnSulfide->SetLacunarity(2.0f);
+
     // Configure Domain Warp
     fnWarp->SetWarpAmplitude(10.0f);
     fnWarp->SetWarpFrequency(0.02f);
@@ -165,12 +185,19 @@ void tileGrid::generatePerlinTerrain(float scale, int heightCo,
     std::vector<float> biologicalMap(width * height);
     fnBiological->GenUniformGrid2D(biologicalMap.data(), baseGenOffset[0], baseGenOffset[1], width, height, 0.05f * scale, 1341);
 
+    std::vector<float> sulfideMap(width * height);
+    fnSulfide->GenUniformGrid2D(sulfideMap.data(), baseGenOffset[0], baseGenOffset[1], width, height, 0.01f * scale, 1342);
+
 
     // Preallocate helpers for hydrology
     const int N = width * height;
+    
     std::vector<float> groundElev(N, 0.0f);
     std::vector<uint8_t> moist(N, 0);
     std::vector<uint8_t> temp(N, 0);
+    std::vector<uint8_t> biol(N, 0);
+
+
     auto idx = [this](int x, int y) { return y * this->width + x; };
 
     for (int x = 0; x < width; ++x) {
@@ -232,6 +259,10 @@ void tileGrid::generatePerlinTerrain(float scale, int heightCo,
             float baseMagmatic = (magmaticMap[y * width + x] + 1.0f) / 2.0f; // Normalized 0-1
             float modifiedMagmatic = baseMagmatic + slope * 0.15f; // Add 15% of the slope value
             t.magmaticPotential = static_cast<uint8_t>(std::max(0.0f, std::min(1.0f, modifiedMagmatic)) * 255.0f);
+
+            // Sulfide potential
+            float baseSulfide = (sulfideMap[y * width + x] + 1.0f) / 2.0f; // Normalized 0-1
+            t.sulfidePotential = static_cast<uint8_t>(std::round(std::clamp(baseSulfide, 0.0f, 1.0f) * 255.0f));
 
             // Biome selection
             if (t.temperature < 40) {
@@ -297,11 +328,13 @@ void tileGrid::generatePerlinTerrain(float scale, int heightCo,
 
     // Determine water presence using a climate-dependent minimum depth threshold
     std::vector<float> waterDepth(N, 0.0f);
+    // Sea level mask (per-tile) to force baseline ocean water independent of local depressions
+    std::vector<uint8_t> isSea(N, 0);
+    float seaBase = waterParams.seaLevelThreshold; // Interpreted in same height units as tile heights
     for (int y = 0; y < height; ++y) {
         for (int x = 0; x < width; ++x) {
             int i = idx(x, y);
             float rawDepth = std::max(0.0f, filled[i] - groundElev[i]);
-            // Global control over overall water magnitude
             rawDepth *= std::max(0.0f, waterParams.waterAmountScale);
             float m = moist[i] / 255.0f;
             float tnorm = temp[i] / 255.0f;
@@ -312,28 +345,39 @@ void tileGrid::generatePerlinTerrain(float scale, int heightCo,
                            + waterParams.drynessCoeff * dryness
                            + waterParams.evapCoeff    * evap;
             waterDepth[i] = (rawDepth >= minDepth) ? rawDepth : 0.0f;
+            // --- Baseline sea level application ---
+            // If ground elevation is below configured sea level, guarantee water up to sea level.
+            if (groundElev[i] < seaBase) {
+                float baseline = seaBase - groundElev[i];
+                if (baseline > waterDepth[i]) waterDepth[i] = baseline;
+                if (baseline > 0.0f) isSea[i] = 1;
+                biol[i] = 30;
+
+            }
         }
     }
 
-    // Flatten lakes: group contiguous water tiles (4-neigh) with similar filled level and assign a single plateau per group
+    // Flatten lakes: group contiguous water tiles (4-neigh) with similar candidate water surface and assign a plateau
     std::vector<float> waterSurfaceY(N, 0.0f);
     std::vector<int> comp(N, -1);
     int compId = 0;
-    const float levelEps = 0.01f; // tolerance for same-lake level
-    std::vector<int> q;
-    q.reserve(N);
+    const float levelEps = 0.01f; // tolerance for grouping (in world height units)
+    std::vector<int> q; q.reserve(N);
+    
+    // Candidate surface per cell: ground elevation + computed water depth (already includes sea baseline); ensures we never pull a lake below its filled spill level
+    auto surfaceLevel = [&](int index)->float { return groundElev[index] + waterDepth[index]; };
+    
     for (int y = 0; y < height; ++y) {
         for (int x = 0; x < width; ++x) {
             int i = idx(x, y);
-            if (waterDepth[i] <= 0.01f || comp[i] != -1) continue;
-            // I am honestly surprised this works
+            if (waterDepth[i] <= 0.01f || comp[i] != -1) continue; // skip dry or already processed
             q.clear();
             q.push_back(i); comp[i] = compId;
-            float sumLvl = 0.0f; int cnt = 0;
-            size_t head = 0;
+            float sumLvl = 0.0f; int cnt = 0; size_t head = 0;
             while (head < q.size()) {
                 int cur = q[head++];
-                sumLvl += filled[cur]; cnt++;
+                float curSurf = surfaceLevel(cur);
+                sumLvl += curSurf; ++cnt;
                 int cx = cur % width; int cy = cur / width;
                 for (int k = 0; k < 4; ++k) {
                     int nx = cx + dx4[k];
@@ -342,38 +386,71 @@ void tileGrid::generatePerlinTerrain(float scale, int heightCo,
                     int ni = idx(nx, ny);
                     if (comp[ni] != -1) continue;
                     if (waterDepth[ni] <= 0.01f) continue;
-                    if (fabsf(filled[ni] - filled[cur]) <= levelEps) {
+                    float nSurf = surfaceLevel(ni);
+                    if (fabsf(nSurf - curSurf) <= levelEps) { // same lake plateau
                         comp[ni] = compId;
                         q.push_back(ni);
                     }
                 }
             }
-            float plateau = (cnt > 0) ? (sumLvl / (float)cnt) : filled[i];
-            // Quantize plateau to half-unit for stability between neighbors
-            plateau = roundf(plateau * 2.0f) / 2.0f;
+            float plateau = (cnt > 0) ? (sumLvl / (float)cnt) : surfaceLevel(i);
+            plateau = roundf(plateau * 2.0f) / 2.0f; // quantize to half-unit increments
             for (int id : q) waterSurfaceY[id] = plateau;
-            compId++;
+            ++compId;
         }
     }
 
-    // Assign water level back to tiles using per-lake plateau
+    // Apply padding to water levels to prevent exposed water tiles
+    // Create a dilated version of water levels similar to mesh generation
+    std::vector<uint8_t> waterLevelMap(N, 0);
+    std::vector<uint8_t> dilatedWaterLevels(N, 0);
+    
+    // First pass: assign base water levels
+    for (int y = 0; y < height; ++y) {
+        for (int x = 0; x < width; ++x) {
+            int i = idx(x, y);
+            if (waterDepth[i] > 0.01f) {
+                float waterY = (comp[i] >= 0) ? waterSurfaceY[i] : surfaceLevel(i);
+                int quantized = (int)roundf(waterY * 2.0f); // store in half units
+                quantized = std::clamp(quantized, 0, heightCo * 2);
+                waterLevelMap[i] = (uint8_t)quantized - 1;
+                biol[i] = 30;
+            } else {
+                waterLevelMap[i] = 0;
+            }
+        }
+    }
+    
+    // Apply morphological dilation for padding (similar to water mesh generation)
+    const int waterPadding = std::max(1, waterParams.waterPad); // At least 1 tile of padding
+    for (int y = 0; y < height; ++y) {
+        for (int x = 0; x < width; ++x) {
+            int i = idx(x, y);
+            uint8_t maxLevel = waterLevelMap[i];
+            
+            // If this tile doesn't have water, check neighbors for water to extend
+            if (maxLevel == 0) {
+                for (int ox = -waterPadding; ox <= waterPadding; ++ox) {
+                    for (int oy = -waterPadding; oy <= waterPadding; ++oy) {
+                        int nx = x + ox, ny = y + oy;
+                        if (nx < 0 || nx >= width || ny < 0 || ny >= height) continue;
+                        uint8_t neighborLevel = waterLevelMap[idx(nx, ny)];
+                        if (neighborLevel > maxLevel) {
+                            maxLevel = neighborLevel;
+                        }
+                    }
+                }
+            }
+            dilatedWaterLevels[i] = maxLevel;
+        }
+    }
+    
+    // Assign final water levels back to tiles
     for (int y = 0; y < height; ++y) {
         for (int x = 0; x < width; ++x) {
             int i = idx(x, y);
             tile t = getTile(x, y);
-            if (waterDepth[i] > 0.01f) {
-                float waterY = (comp[i] >= 0) ? waterSurfaceY[i] : filled[i];
-                int quantized = (int)roundf(waterY * 2.0f);
-                quantized = std::clamp(quantized, 0, heightCo * 2) - 1;
-                t.waterLevel = (uint8_t)quantized;
-                // Shore tweak: sand near water edges
-                float minCorner = fminf(fminf(t.tileHeight[0], t.tileHeight[1]), fminf(t.tileHeight[2], t.tileHeight[3]));
-                if (waterY > minCorner - 0.25f && waterY < minCorner + 0.5f) {
-                    t.type = SAND;
-                }
-            } else {
-                t.waterLevel = 0;
-            }
+            t.waterLevel = dilatedWaterLevels[i];
             setTile(x, y, t);
         }
     }
@@ -463,7 +540,7 @@ void tileGrid::generatePerlinTerrain(float scale, int heightCo,
     for (int y = 0; y < height; ++y) {
         for (int x = 0; x < width; ++x) {
             tile t = getTile(x, y);
-            t.hydrologicalPotential = (uint8_t)std::round(std::clamp(hydroBlur[idx(x, y)], 0.0f, 1.0f) * 255.0f);
+            t.hydrologicalPotential = (uint8_t)std::round(std::clamp(hydroBlur[idx(x, y)], 0.0f, 1.0f) * 255.0f) + biol[idx(x, y)];
 
             // --- Biological Potential ---
             float baseBio = (biologicalMap[idx(x, y)] + 1.0f) / 2.0f; // 0-1 from noise
@@ -475,7 +552,7 @@ void tileGrid::generatePerlinTerrain(float scale, int heightCo,
             float tempFactor = 1.0f - tempDist;
 
             // Combine factors
-            float finalBio = baseBio * moistureFactor * (0.5f + hydroFactor * 0.5f);
+            float finalBio = baseBio * moistureFactor * (0.5f + hydroFactor * 0.5f) * tempFactor;
             
             t.biologicalPotential = (uint8_t)std::round(std::clamp(finalBio, 0.0f, 1.0f) * 255.0f);
 
@@ -560,10 +637,6 @@ unsigned int tileGrid::getHeight() { return height; }
 unsigned int tileGrid::getDepth() { return depth; }
 
 void tileGrid::generateMesh() {
-    using clock = std::chrono::high_resolution_clock;
-#ifdef TILEGRID_PROFILE
-    auto t0 = clock::now();
-#endif
     // Assuming texture atlas dimensions (you may want to make these configurable)
     const float atlasWidth = 80.0f;  // Total atlas width in pixels
     const float atlasHeight = 16.0f; // Total atlas height in pixels
@@ -802,10 +875,6 @@ void tileGrid::updateLighting(Vector3 sunDirection, Vector3 sunColor, float ambi
 
 // Build a separate flat translucent water surface model
 void tileGrid::generateWaterMesh() {
-    using clock = std::chrono::high_resolution_clock;
-#ifdef TILEGRID_PROFILE
-    auto t0 = clock::now();
-#endif
     // Build flat water surface at constant waterY with diagonal splitting
     std::vector<Vector3> vertices;
     std::vector<Vector3> normals;

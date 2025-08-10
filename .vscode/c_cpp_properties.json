@@ -3,7 +3,8 @@
     {
       "name": "linux-gcc-x64",
       "includePath": [
-        "${workspaceFolder}/**"
+        "${workspaceFolder}/**",
+        "${workspaceFolder}/libs/FastNoise2/include/"
       ],
       "compilerPath": "/usr/bin/gcc",
       "cStandard": "${default}",

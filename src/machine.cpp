@@ -17,6 +17,11 @@ void machine::update() {
 void machine::render() {
 }
 
+machine::machine(machineType type, Vector3 position, std::initializer_list<machineTileOffset> offsets)
+    : machine(type, position) {
+    tileOffsets.assign(offsets.begin(), offsets.end());
+}
+
 void machineManager::update() {
     for (std::unique_ptr<machine>& machine : machines) {
         machine->update();
@@ -42,7 +47,7 @@ machineManager::machineManager() {
 machineManager::~machineManager() {
 }
 
-drillMk1::drillMk1(Vector3 position) : machine(DRILLMK1, position) {}
+drillMk1::drillMk1(Vector3 position) : machine(DRILLMK1, position, {{0, 0}}) {}
 drillMk1::~drillMk1() {}
 
 void drillMk1::update() {
@@ -53,7 +58,7 @@ void drillMk1::render() {
     DrawModel(resourceManager::getMachineModel(type), {position.x+0.5f, position.y, position.z}, 0.5f, WHITE);
 }
 
-conveyorMk1::conveyorMk1(Vector3 position) : machine(CONVEYORMK1, position) {}
+conveyorMk1::conveyorMk1(Vector3 position) : machine(CONVEYORMK1, position, {{0, 0}}) {}
 
 void conveyorMk1::update() {
 
@@ -63,7 +68,7 @@ void conveyorMk1::render() {
     DrawModel(resourceManager::getMachineModel(type), {position.x+0.5f, position.y, position.z+0.5f}, 0.5f, WHITE);
 }
 
-droppedItem::droppedItem(Vector3 position, itemType type) : machine(ITEM, position) {
+droppedItem::droppedItem(Vector3 position, itemType type) : machine(ITEM, position, {{0, 0}}) {
     itemInstance.type = type;
     itemInstance.quantity = 1; // Assuming default quantity of 1 for dropped items
 }

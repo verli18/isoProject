@@ -1,5 +1,6 @@
 #include <cstdint>
 #include <memory>
+#include <initializer_list>
 #include <raylib.h>
 #include <vector>
 #include "item.hpp"
@@ -22,13 +23,20 @@ enum state{
     WORKING
 };
 
+struct machineTileOffset { // this is for defining slots occupied by a machine
+    int x;
+    int y;
+};
+
 class machine {
     public:
         machine(machineType type, Vector3 position);
+        machine(machineType type, Vector3 position, std::initializer_list<machineTileOffset> offsets);
         virtual ~machine();
     
         machineType type;
         state currentState;
+        std::vector<machineTileOffset> tileOffsets;
 
         uint16_t animFrame; //current animation frame
 

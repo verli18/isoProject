@@ -2,9 +2,9 @@
 #include "chunkManager.hpp"
 #include "resourceManager.hpp"
 
-#define GAMEWIDTH 480*2
-#define GAMEHEIGHT 270*2
-#define GAMESCALE 2
+#define GAMEWIDTH 480
+#define GAMEHEIGHT 270
+#define GAMESCALE 3
 
 class gameState{
     public:
@@ -12,7 +12,7 @@ class gameState{
     Camera3D camera = { {32.0f, 32.0f, 32.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 1.0f, 0.0f}, 20.0f, CAMERA_PERSPECTIVE};
     int renderMode = 1;
     int debugOpt = 0;
-    gameState() : world(3) {
+    gameState() : world(5) {
         init();
     }
 
