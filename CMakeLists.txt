@@ -27,9 +27,11 @@ set(SOURCES
     src/chunk.cpp
     src/chunkManager.cpp
     src/machine.cpp
+    src/machineManager.cpp
     src/resourceManager.cpp
     src/gamestate.cpp
     src/item.cpp
+    src/inventory.cpp
     libs/rlImGui/rlImGui.cpp
     libs/rlImGui/imgui/imgui.cpp
     libs/rlImGui/imgui/imgui_widgets.cpp

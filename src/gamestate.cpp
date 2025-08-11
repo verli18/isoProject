@@ -21,6 +21,9 @@ void gameState::init() {
     resourceManager::initialize();
     rlImGuiSetup(true);
 
+    // Link managers
+    machineManagement.world = &world;
+
     // Load initial chunks and setup center chunk
     world.update(camera);
     Chunk* center = world.getChunk(0, 0);
@@ -55,6 +58,30 @@ void gameState::update() {
         sunData.shiftIntensity, sunData.shiftDisplacement
     );
 
+    if (IsKeyPressed(KEY_R)) {
+        placementDirection = static_cast<direction>((placementDirection + 1) % 4);
+    }
+
+    // Machine Inspection Logic
+    if (IsMouseButtonPressed(MOUSE_MIDDLE_BUTTON)) {
+        Ray mouseRay = GetMouseRay(GetMousePosition(), camera);
+        Vector3 hitVoxel = world.getChunk(0, 0)->tiles.getTileIndexDDA(mouseRay);
+        if (hitVoxel.x != -1) {
+            inspectedMachine = machineManagement.getMachineAt({(int)hitVoxel.x, (int)hitVoxel.y});
+        } else {
+            inspectedMachine = nullptr;
+        }
+    }
+
+    // Machine Deletion Logic
+    if (IsKeyPressed(KEY_X)) {
+        Ray mouseRay = GetMouseRay(GetMousePosition(), camera);
+        Vector3 hitVoxel = world.getChunk(0, 0)->tiles.getTileIndexDDA(mouseRay);
+        if (hitVoxel.x != -1) {
+            machineManagement.removeMachineAt({(int)hitVoxel.x, (int)hitVoxel.y});
+        }
+    }
+
     machineManagement.update();
         
     if(IsKeyDown(KEY_W)) { cameraPosition.z -= 1 * GetFrameTime() * 10; cameraTarget.z -= 1 * GetFrameTime() * 10; }
@@ -66,14 +93,29 @@ void gameState::update() {
     
     camera.target = cameraTarget;
     camera.position = cameraPosition;
-    if (IsMouseButtonDown(MOUSE_LEFT_BUTTON)) {
-        // Ray-pick across loaded chunks
-        Ray mouseRay = GetMouseRay(GetMousePosition(), camera);
-        Vector3 hitVoxel = world.getChunk(0, 0)->tiles.getTileIndexDDA(mouseRay);
-        if (hitVoxel.x != -1 && buildMode) {
-            std::cout << "Hit voxel: " << hitVoxel.x << " " << hitVoxel.y << " " << hitVoxel.z << std::endl;
-            machineManagement.addMachine(std::make_unique<conveyorMk1>(Vector3{hitVoxel.x, world.getChunk(1, 0)->tiles.getTile(hitVoxel.x, hitVoxel.y).tileHeight[0], hitVoxel.y}));
-            world.getChunk(0, 0)->tiles.placeMachine(hitVoxel.x, hitVoxel.y, machineManagement.previous);
+    if (IsMouseButtonPressed(MOUSE_LEFT_BUTTON)) {
+        if (!ImGui::GetIO().WantCaptureMouse) {
+            std::cout << "Left-click registered in-game." << std::endl;
+            // Ray-pick across loaded chunks
+            Ray mouseRay = GetMouseRay(GetMousePosition(), camera);
+            Vector3 hitVoxel = world.getChunk(0, 0)->tiles.getTileIndexDDA(mouseRay);
+            if (hitVoxel.x != -1 && buildMode) {
+                std::cout << "Build conditions met. Placing machine at: " << hitVoxel.x << ", " << hitVoxel.y << std::endl;
+                std::unique_ptr<machine> newMachine;
+                if (placementType == DRILLMK1) {
+                    newMachine = std::make_unique<drillMk1>(Vector3{hitVoxel.x, world.getChunk(0, 0)->tiles.getTile(hitVoxel.x, hitVoxel.y).tileHeight[0], hitVoxel.y});
+                } else {
+                    newMachine = std::make_unique<conveyorMk1>(Vector3{hitVoxel.x, world.getChunk(0, 0)->tiles.getTile(hitVoxel.x, hitVoxel.y).tileHeight[0], hitVoxel.y});
+                }
+
+                newMachine->dir = placementDirection;
+                // For now, assuming placement is on center chunk, so local coords are global coords.
+                newMachine->globalPos = {(int)hitVoxel.x, (int)hitVoxel.y};
+
+                if(world.getChunk(0, 0)->tiles.placeMachine(hitVoxel.x, hitVoxel.y, newMachine.get())){
+                    machineManagement.addMachine(std::move(newMachine));
+                }
+            }
         }
     }
 
@@ -104,12 +146,12 @@ void gameState::render() {
              break;
             case 2:
                 switch (debugOpt) {
-                    case 0: world.renderDataPoint({206,220,176}, {21,106,125}, &tile::moisture); break;
-                    case 1: world.renderDataPoint({20,57,109}, {201,66,46}, &tile::temperature); break;
-                    case 2: world.renderDataPoint({79,5,37}, {198,93,15}, &tile::magmaticPotential); break;
-                    case 3: world.renderDataPoint({79,5,37}, {209,204,103}, &tile::sulfidePotential); break;
-                    case 4: world.renderDataPoint({206,220,176}, {27,86,122}, &tile::hydrologicalPotential); break;
-                    case 5: world.renderDataPoint({3,39,43}, {122,157,55}, &tile::biologicalPotential); break;
+                    case 0: world.renderDataPoint({206,220,176,255}, {21,106,125,255}, &tile::moisture); break;
+                    case 1: world.renderDataPoint({20,57,109,255}, {201,66,46,255}, &tile::temperature); break;
+                    case 2: world.renderDataPoint({79,5,37,255}, {198,93,15,255}, &tile::magmaticPotential); break;
+                    case 3: world.renderDataPoint({79,5,37,255}, {209,204,103,255}, &tile::sulfidePotential); break;
+                    case 4: world.renderDataPoint({206,220,176,255}, {27,86,122,255}, &tile::hydrologicalPotential); break;
+                    case 5: world.renderDataPoint({3,39,43,255}, {122,157,55,255}, &tile::biologicalPotential); break;
                 }
              break;
         }
@@ -131,6 +173,36 @@ void gameState::render() {
         ImGui::Combo("mode", &debugOpt, "moisture\0temperature\0magmatic potential\0sulfide potential\0hydrological potential\0biological potential\0");
 
         ImGui::End();
+
+        ImGui::Begin("Build");
+        const char* direction_names[] = {"NORTH", "EAST", "SOUTH", "WEST"};
+        ImGui::Text("Rotation: %s", direction_names[placementDirection]);
+        ImGui::Separator();
+        ImGui::RadioButton("Drill", (int*)&placementType, DRILLMK1);
+        ImGui::SameLine();
+        ImGui::RadioButton("Conveyor", (int*)&placementType, CONVEYORMK1);
+        ImGui::Checkbox("Build Mode", &buildMode);
+        ImGui::End();
+
+        if (inspectedMachine) {
+            ImGui::Begin("Machine Inventory");
+            Inventory* inv = inspectedMachine->getInventory();
+            if (inv) {
+                const char* item_names[] = {"IRON_ORE", "COPPER_ORE"};
+                const auto& slots = inv->getSlots();
+                for (size_t i = 0; i < slots.size(); ++i) {
+                    const auto& slot = slots[i];
+                    if (slot.currentItem.quantity > 0) {
+                        ImGui::Text("Slot %zu: %d x %s", i, slot.currentItem.quantity, item_names[slot.currentItem.type]);
+                    } else {
+                        ImGui::Text("Slot %zu: Empty", i);
+                    }
+                }
+            } else {
+                ImGui::Text("This machine has no inventory.");
+            }
+            ImGui::End();
+        }
         rlImGuiEnd();
         EndTextureMode();
         

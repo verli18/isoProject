@@ -130,6 +130,27 @@ machine* tileGrid::getMachineAt(int x, int y) {
     return grid[y][x].occupyingMachine;
 }
 
+void tileGrid::removeMachine(int x, int y) {
+    if (x < 0 || x >= width || y < 0 || y >= height) {
+        return;
+    }
+
+    machine* machinePtr = grid[y][x].occupyingMachine;
+    if (machinePtr == nullptr) {
+        return; // No machine to remove
+    }
+
+    // For multi-tile machines, this assumes the passed (x, y) is the root tile.
+    // This holds true for the current 1x1 machines.
+    for (const auto& offset : machinePtr->tileOffsets) {
+        int currentX = x + offset.x;
+        int currentY = y + offset.y;
+        if (currentX >= 0 && currentX < width && currentY >= 0 && currentY < height) {
+            grid[currentY][currentX].occupyingMachine = nullptr;
+        }
+    }
+}
+
 void tileGrid::generatePerlinTerrain(float scale, int heightCo,
                                     int octaves, float persistence, float lacunarity, float exponent, int baseGenOffset[6]) {
 

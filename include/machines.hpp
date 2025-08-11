@@ -1,14 +1,26 @@
+#pragma once
 #include <cstdint>
 #include <memory>
 #include <initializer_list>
 #include <raylib.h>
 #include <vector>
-#include "item.hpp"
+#include <optional>
+#include "inventory.hpp"
+
+// Forward-declare the manager to break circular dependency
+class machineManager;
 
 enum machineType {
     CONVEYORMK1,
     DRILLMK1,
     ITEM
+};
+
+enum direction {
+    NORTH,
+    EAST,
+    SOUTH,
+    WEST
 };
 
 enum animFrames {
@@ -28,6 +40,20 @@ struct machineTileOffset { // this is for defining slots occupied by a machine
     int y;
 };
 
+struct globalMachinePos {
+    int x;
+    int y;
+};
+
+// Comparator for using globalMachinePos in std::map
+struct CompareGlobalMachinePos {
+    bool operator()(const globalMachinePos& a, const globalMachinePos& b) const {
+        if (a.x < b.x) return true;
+        if (a.x > b.x) return false;
+        return a.y < b.y;
+    }
+};
+
 class machine {
     public:
         machine(machineType type, Vector3 position);
@@ -41,10 +67,19 @@ class machine {
         uint16_t animFrame; //current animation frame
 
         int ID;
-        Vector3 position;
-        
-    virtual void update() = 0;
+        Vector3 position; //for renndering
+        globalMachinePos globalPos; //for machine interactions
+        direction dir = NORTH;
+
+    // Update method now takes the manager to allow for interactions
+    virtual void update(machineManager& manager) = 0;
     virtual void render() = 0;
+
+    // Inventory system access
+    virtual Inventory* getInventory() { return nullptr; }
+
+    // Item giving method
+    virtual bool giveItem(item anItem, machineManager& manager) { return false; }
 
     protected:
         void updateAnimation();
@@ -58,18 +93,25 @@ class drillMk1 : public machine {
         drillMk1(Vector3 position);
         ~drillMk1();
     
-    void update() override;
+    void update(machineManager& manager) override;
     void render() override;
+    Inventory* getInventory() override { return &inventory; }
     
     private:
+        float productionProgress = 0.0f;
+        Inventory inventory;
 };
 
 class conveyorMk1 : public machine {
     public:
         conveyorMk1(Vector3 position);
-        void update() override;
+        void update(machineManager& manager) override;
         void render() override;
+
+        Inventory* getInventory() override { return &inventory; }
+        bool giveItem(item anItem, machineManager& manager) override;
     private:
+        Inventory inventory;
 };
 
 class droppedItem : public machine {
@@ -78,28 +120,7 @@ class droppedItem : public machine {
         ~droppedItem();
 
         item itemInstance;
-    void update() override;
+    void update(machineManager& manager) override;
     void render() override;
     private:
 };
-
-class machineManager {
-    public:
-        machineManager();
-        ~machineManager();
-
-        // Non-copyable
-        machineManager(const machineManager&) = delete;
-        machineManager& operator=(const machineManager&) = delete;
-    
-    void update();
-    void render();
-
-    void addMachine(std::unique_ptr<machine> machine);
-    void removeMachine(int ID);
-
-    machine* previous;
-    private:
-    std::vector<std::unique_ptr<machine>> machines;
-};
-    

@@ -1,6 +1,9 @@
+#pragma once
+
 #include "raylib.h"
 #include "chunkManager.hpp"
 #include "resourceManager.hpp"
+#include "machineManager.hpp" 
 
 #define GAMEWIDTH 480
 #define GAMEHEIGHT 270
@@ -24,7 +27,12 @@ class gameState{
     chunkManager world;
     machineManager machineManagement;
     RenderTexture2D renderCanvas; //I will always use this naming convention, even though I haven't used lua in years by now lol
-    private:
 
+    private:
+        // Machine placement variables
+        machineType placementType = DRILLMK1;
+        direction placementDirection = NORTH;
+
+        // Machine inspection variable
+        machine* inspectedMachine = nullptr;
 };
-    

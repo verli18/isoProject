@@ -1,6 +1,7 @@
 #include "../include/chunkManager.hpp"
 #include "raylib.h"
 #include "cmath"
+#include <algorithm>
 
 chunkManager::chunkManager(int loadRadius) : radius(loadRadius), lastCenter({-99999, -99999}) {}
 chunkManager::~chunkManager() = default;
