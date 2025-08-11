@@ -11,8 +11,14 @@ enum SlotType {
     STORAGE // Can be used for both (e.g., a chest or internal buffer)
 };
 
+struct slotInterfaceTile{
+    int8_t x;
+    int8_t y;
+};
+
 struct InventorySlot {
     // --- Configuration (set on creation)
+    std::optional<slotInterfaceTile> interfaceTile; //"where is this slot on the machine?"
     SlotType type = STORAGE;
     std::optional<itemType> filter; // Optional: if set, only allows this item type
     uint16_t capacity = 64; // Max stack size for discrete items

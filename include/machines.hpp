@@ -38,6 +38,17 @@ enum state{
 struct machineTileOffset { // this is for defining slots occupied by a machine
     int x;
     int y;
+    
+    // Transform coordinates based on machine direction
+    machineTileOffset getRotatedOffset(direction dir) const {
+        switch (dir) {
+            case NORTH: return {x, y};           // 0° rotation
+            case EAST:  return {-y, x};          // 90° clockwise
+            case SOUTH: return {-x, -y};         // 180° rotation
+            case WEST:  return {y, -x};          // 270° clockwise
+            default:    return {x, y};
+        }
+    }
 };
 
 struct globalMachinePos {
@@ -80,6 +91,12 @@ class machine {
 
     // Item giving method
     virtual bool giveItem(item anItem, machineManager& manager) { return false; }
+    
+    // Get the global position of a slot based on machine direction
+    globalMachinePos getSlotGlobalPosition(const machineTileOffset& slotOffset) const;
+    
+    // Render slots for debugging
+    void renderSlots();
 
     protected:
         void updateAnimation();
@@ -112,6 +129,10 @@ class conveyorMk1 : public machine {
         bool giveItem(item anItem, machineManager& manager) override;
     private:
         Inventory inventory;
+        item heldItem;
+        bool hasHeldItem = false;
+        float processingProgress = 0.0f;
+        const float PROCESSING_TIME = 0.5f; // 0.5 seconds processing time
 };
 
 class droppedItem : public machine {
