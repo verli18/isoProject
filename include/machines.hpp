@@ -133,6 +133,8 @@ class conveyorMk1 : public machine {
         bool hasHeldItem = false;
         float processingProgress = 0.0f;
         const float PROCESSING_TIME = 0.5f; // 0.5 seconds processing time
+        float movementProgress = 0.0f; // For lerping item position
+        bool hasItemToRender = false; // Track if we should render an item
 };
 
 class droppedItem : public machine {

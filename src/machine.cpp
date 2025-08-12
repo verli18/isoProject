@@ -143,9 +143,11 @@ bool conveyorMk1::giveItem(item anItem, machineManager& manager) {
     if (slot.currentItem.quantity == 0) {
         // Reset processing time to create cooldown
         processingProgress = 0.0f;
+        movementProgress = 0.0f; // Reset movement progress
         // Store the item temporarily
         heldItem = anItem;
         hasHeldItem = true;
+        hasItemToRender = true; // Mark that we should render an item
         return true;
     }
     return false; // Could not accept item (slot is occupied)
@@ -161,12 +163,13 @@ void conveyorMk1::update(machineManager& manager) {
         }
         
         processingProgress += GetFrameTime();
+        movementProgress += GetFrameTime() / PROCESSING_TIME; // Update movement progress
         
         // Check if processing is complete
         if (processingProgress >= PROCESSING_TIME) {
             // Try to pass the item to the next machine in the chain
             // Use the standard forward direction (0, -1) and rotate it based on conveyor direction
-            machineTileOffset forwardOffset = {inventory.getSlots()[0].interfaceTile.value().y, inventory.getSlots()[0].interfaceTile.value().x};
+            machineTileOffset forwardOffset = {0, -1};
             machineTileOffset rotatedOffset = forwardOffset.getRotatedOffset(dir);
             globalMachinePos nextPos = {globalPos.x + rotatedOffset.x, globalPos.y + rotatedOffset.y};
             
@@ -177,6 +180,8 @@ void conveyorMk1::update(machineManager& manager) {
                     // Successfully passed the item, clear our held item and remove from inventory
                     hasHeldItem = false;
                     processingProgress = 0.0f;
+                    movementProgress = 0.0f; // Reset movement progress
+                    hasItemToRender = false; // No longer need to render the item
                     // Remove the item from our inventory
                     item takenItem;
                     inventory.tryTakeItem(takenItem, static_cast<itemType>(heldItem.type));
@@ -206,12 +211,48 @@ void conveyorMk1::render() {
 
     // Render item on conveyor if present
     Inventory* inv = getInventory();
-    if (inv && inv->getSlots()[0].currentItem.quantity > 0) {
-        item currentItem = inv->getSlots()[0].currentItem;
+    if ((inv && inv->getSlots()[0].currentItem.quantity > 0) || hasItemToRender) {
+        item currentItem;
+        if (inv && inv->getSlots()[0].currentItem.quantity > 0) {
+            currentItem = inv->getSlots()[0].currentItem;
+        } else {
+            currentItem = heldItem;
+        }
+        
         Texture2D texture = resourceManager::getItemTexture(static_cast<itemType>(currentItem.type));
         Rectangle sourceRect = resourceManager::getItemTextureUV(static_cast<itemType>(currentItem.type));
+        
+        // Calculate start and end positions based on conveyor direction
+        Vector3 startPos = {0, 0, 0}, endPos = {0, 0, 0};
+        switch (dir) {
+            case NORTH:
+                startPos = {position.x + 0.5f, position.y + 0.2f, position.z + 1.0f};
+                endPos = {position.x + 0.5f, position.y + 0.2f, position.z};
+                break;
+            case EAST:
+                startPos = {position.x, position.y + 0.2f, position.z + 0.5f};
+                endPos = {position.x + 1.0f, position.y + 0.2f, position.z + 0.5f};
+                break;
+            case SOUTH:
+                startPos = {position.x + 0.5f, position.y + 0.2f, position.z};
+                endPos = {position.x + 0.5f, position.y + 0.2f, position.z + 1.0f};
+                break;
+            case WEST:
+                startPos = {position.x + 1.0f, position.y + 0.2f, position.z + 0.5f};
+                endPos = {position.x, position.y + 0.2f, position.z + 0.5f};
+                break;
+        }
+        
+        // Lerp between start and end positions based on movement progress
+        float t = fminf(movementProgress, 1.0f); // Clamp to 1.0
+        Vector3 itemPos = {
+            startPos.x + t * (endPos.x - startPos.x),
+            startPos.y + t * (endPos.y - startPos.y),
+            startPos.z + t * (endPos.z - startPos.z)
+        };
+        
         // Position slightly above the conveyor
-        DrawBillboardRec(resourceManager::camera, texture, sourceRect, {position.x + 0.5f, position.y + 0.2f, position.z + 0.5f}, Vector2{0.5f, 0.5f}, WHITE);
+        DrawBillboardRec(resourceManager::camera, texture, sourceRect, itemPos, Vector2{0.5f, 0.5f}, WHITE);
     }
     
     // Render slots for debugging

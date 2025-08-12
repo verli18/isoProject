@@ -8,6 +8,7 @@
 #include <chrono>
 #include <FastNoise/FastNoise.h>
 
+
 #pragma GCC diagnostic ignored "-Wchar-subscripts"
 #pragma GCC diagnostic ignored "-Wunused-parameter"
 #pragma GCC diagnostic ignored "-Wmissing-field-initializers"
@@ -88,6 +89,10 @@ tileGrid::tileGrid(int width, int height) : width(width), height(height) {
     // Sulfide potential map generator
     fnSulfide = FastNoise::New<FastNoise::FractalFBm>();
     fnSulfide->SetSource(FastNoise::New<FastNoise::Simplex>());
+
+    // Crystaline potential map generator - using Cellular noise for chain-like patterns
+    fnCrystaline = FastNoise::New<FastNoise::FractalRidged>();
+    fnCrystaline->SetSource(FastNoise::New<FastNoise::Simplex>());
 }
 
 tileGrid::~tileGrid() {
@@ -171,17 +176,21 @@ void tileGrid::generatePerlinTerrain(float scale, int heightCo,
     fnRegion->SetGain(0.5f);
     fnRegion->SetLacunarity(2.0f);
 
-    fnMagmatic->SetOctaveCount(3);
+    fnMagmatic->SetOctaveCount(2);
     fnMagmatic->SetGain(0.5f);
     fnMagmatic->SetLacunarity(2.0f);
 
-    fnBiological->SetOctaveCount(4);
+    fnBiological->SetOctaveCount(3);
     fnBiological->SetGain(0.5f);
     fnBiological->SetLacunarity(2.0f);
 
     fnSulfide->SetOctaveCount(3);
     fnSulfide->SetGain(0.5f);
     fnSulfide->SetLacunarity(2.0f);
+
+    fnCrystaline->SetOctaveCount(3);
+    fnCrystaline->SetGain(0.6f);
+    fnCrystaline->SetLacunarity(2.0f);
 
     // Configure Domain Warp
     fnWarp->SetWarpAmplitude(10.0f);
@@ -209,6 +218,8 @@ void tileGrid::generatePerlinTerrain(float scale, int heightCo,
     std::vector<float> sulfideMap(width * height);
     fnSulfide->GenUniformGrid2D(sulfideMap.data(), baseGenOffset[0], baseGenOffset[1], width, height, 0.01f * scale, 1342);
 
+    std::vector<float> crystalineMap(width * height);
+    fnCrystaline->GenUniformGrid2D(crystalineMap.data(), baseGenOffset[0], baseGenOffset[1], width, height, 0.02f * scale, 1343);
 
     // Preallocate helpers for hydrology
     const int N = width * height;
@@ -259,6 +270,22 @@ void tileGrid::generatePerlinTerrain(float scale, int heightCo,
             float baseMoisture = (moistureMap[y * width + x] + 1.0f) / 2.0f * 255.0f;
             float baseTemperature = (temperatureMap[y * width + x] + 1.0f) / 2.0f * 255.0f;
 
+
+            // Base crystaline potential from noise - enhanced for chain-like patterns
+            float baseCrystaline = (crystalineMap[y * width + x] + 1.0f) / 2.0f; // Normalized 0-1
+            
+            // Enhance chain-like patterns by increasing contrast
+            baseCrystaline = std::pow(baseCrystaline+0.2f, 2.5f); // Square to create more extreme values
+            
+            // Crystals form with magmatic activity but are enhanced at specific conditions
+            float magmaticFactor = t.magmaticPotential / 255.0f;
+            
+            // Add a bias toward mid elevations (around 40-60 units)
+            float elevationFactor = std::max(0.0f, 1.0f - std::abs(avgH - 50.0f) / 100.0f);
+            
+            // Combine with a bias toward the magmatic factor
+            float finalCrystaline = baseCrystaline * (0.2f + 0.8f * magmaticFactor) * (0.7f + 0.3f * elevationFactor);
+            t.crystalinePotential = static_cast<uint8_t>(std::round(std::clamp(finalCrystaline, 0.0f, 1.0f) * 255.0f));
             // Modify by altitude
             const float altitudeEffect = avgH * 2.0f;
             float finalMoisture = baseMoisture - altitudeEffect;
@@ -278,7 +305,7 @@ void tileGrid::generatePerlinTerrain(float scale, int heightCo,
             float slope = max_h - min_h;
 
             float baseMagmatic = (magmaticMap[y * width + x] + 1.0f) / 2.0f; // Normalized 0-1
-            float modifiedMagmatic = baseMagmatic + slope * 0.15f; // Add 15% of the slope value
+            float modifiedMagmatic = baseMagmatic + slope * 0.35f; // Add 35% of the slope value
             t.magmaticPotential = static_cast<uint8_t>(std::max(0.0f, std::min(1.0f, modifiedMagmatic)) * 255.0f);
 
             // Sulfide potential

@@ -3,6 +3,8 @@
 #include <cstdint> // for uint64_t
 #include "FastNoise/FastNoise.h"
 #include "FastNoise/Generators/DomainWarp.h"
+#include "FastNoise/Generators/Cellular.h"
+
 #include "resourceManager.hpp"
 
 
@@ -35,6 +37,7 @@ struct tile{
     uint8_t sulfidePotential = 0;
     uint8_t hydrologicalPotential = 0;
     uint8_t biologicalPotential = 0;
+    uint8_t crystalinePotential = 0;
     // Interpreted as absolute Y level in half-units: waterY = 0.5f * waterLevel
     uint8_t waterLevel = 0;
 
@@ -102,4 +105,6 @@ class tileGrid {
         FastNoise::SmartNode<FastNoise::FractalFBm> fnMagmatic;
         FastNoise::SmartNode<FastNoise::FractalFBm> fnBiological;
         FastNoise::SmartNode<FastNoise::FractalFBm> fnSulfide;
+        FastNoise::SmartNode<FastNoise::FractalRidged> fnCrystaline;
+        
 };

@@ -152,6 +152,7 @@ void gameState::render() {
                     case 3: world.renderDataPoint({79,5,37,255}, {209,204,103,255}, &tile::sulfidePotential); break;
                     case 4: world.renderDataPoint({206,220,176,255}, {27,86,122,255}, &tile::hydrologicalPotential); break;
                     case 5: world.renderDataPoint({3,39,43,255}, {122,157,55,255}, &tile::biologicalPotential); break;
+                    case 6: world.renderDataPoint({57,12,105,255}, {190,117,174,255}, &tile::crystalinePotential); break;
                 }
              break;
         }
@@ -170,7 +171,7 @@ void gameState::render() {
         ImGui::RadioButton("wireframe", &renderMode, 0);
         ImGui::RadioButton("mesh", &renderMode, 1);
         ImGui::RadioButton("debug", &renderMode, 2);
-        ImGui::Combo("mode", &debugOpt, "moisture\0temperature\0magmatic potential\0sulfide potential\0hydrological potential\0biological potential\0");
+        ImGui::Combo("mode", &debugOpt, "moisture\0temperature\0magmatic potential\0sulfide potential\0hydrological potential\0biological potential\0crystaline potential\0");
 
         ImGui::End();
 
