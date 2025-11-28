@@ -44,6 +44,27 @@ void chunkManager::render() {
     }
 }
 
+void chunkManager::renderGrass(float time, const Camera& cam) {
+    // Distance culling - only render grass for nearby chunks
+    const float grassCullDistance = 100.0f;  // Max distance for grass rendering
+    const float grassCullDistSq = grassCullDistance * grassCullDistance;
+    
+    for (auto& pair : chunks) {
+        // Calculate chunk center in world coords
+        float chunkCenterX = (pair.first.x + 0.5f) * CHUNKSIZE;
+        float chunkCenterZ = (pair.first.y + 0.5f) * CHUNKSIZE;
+        
+        // Distance from camera to chunk center (XZ plane only)
+        float dx = chunkCenterX - cam.position.x;
+        float dz = chunkCenterZ - cam.position.z;
+        float distSq = dx*dx + dz*dz;
+        
+        if (distSq < grassCullDistSq) {
+            pair.second->renderGrass(time);
+        }
+    }
+}
+
 void chunkManager::renderDataPoint(Color a, Color b, uint8_t tile::*dataMember) {
     for(auto& pair : chunks) {
         pair.second->tiles.renderDataPoint(a, b, dataMember, pair.first.x * CHUNKSIZE, pair.first.y * CHUNKSIZE);
@@ -87,4 +108,17 @@ void chunkManager::unloadDistant(const ChunkCoord& center) {
             ++it;
         }
     }
+}
+
+void chunkManager::clearAllChunks() {
+    chunks.clear();
+    lastCenter = {-99999, -99999};  // Force reload on next update
+}
+
+size_t chunkManager::getTotalGrassBlades() const {
+    size_t total = 0;
+    for (const auto& pair : chunks) {
+        total += pair.second->grass.getBladeCount();
+    }
+    return total;
 }

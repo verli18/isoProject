@@ -1,4 +1,5 @@
 #include "../include/machineManager.hpp"
+#include <algorithm>
 
 machineManager::machineManager() {}
 

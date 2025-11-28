@@ -1,0 +1,9 @@
+{
+	"InstallScripts" : 
+	[
+		"/home/chrma/Documents/programming/isoProject/build/cmake_install.cmake",
+		"/home/chrma/Documents/programming/isoProject/build/libs/FastNoise2/cmake_install.cmake",
+		"/home/chrma/Documents/programming/isoProject/build/libs/FastNoise2/src/cmake_install.cmake"
+	],
+	"Parallel" : false
+}

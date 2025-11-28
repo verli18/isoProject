@@ -2,6 +2,7 @@
 #include "../include/machines.hpp"
 #include "../include/resourceManager.hpp"
 #include <cstdint>
+#include <cmath>
 
 int machine::nextID = 0;
 

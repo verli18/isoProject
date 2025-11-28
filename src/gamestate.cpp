@@ -4,6 +4,9 @@
 #include <raylib.h>
 #include "../libs/rlImGui/imgui/imgui.h"
 #include "../libs/rlImGui/rlImGui.h"
+#include "../include/worldGenerator.hpp"
+#include "../include/biome.hpp"
+#include "../include/worldMap.hpp"
 
 Camera resourceManager::camera;
 Vector3 cameraPosition = {32.0f, 32.0f, 32.0f};
@@ -16,6 +19,10 @@ void gameState::init() {
 
     //DisableCursor();
     SetTargetFPS(60);
+
+    // Initialize world generator first (before any chunk generation)
+    WorldGenerator::getInstance().initialize(1337);
+    BiomeManager::getInstance().initialize();
 
     // Initialize resources (shader, textures) before chunk generation
     resourceManager::initialize();
@@ -49,6 +56,14 @@ void gameState::init() {
 void gameState::update() {
     //UpdateCamera(&camera, CAMERA_FREE);
     resourceManager::camera = camera;
+    
+    // Handle terrain regeneration request
+    if (shouldRegenerateTerrain) {
+        WorldMap::getInstance().clear();
+        world.clearAllChunks();
+        shouldRegenerateTerrain = false;
+    }
+    
     // Load or unload chunks based on camera movement
     world.update(camera);
     // Update terrain shader with current lighting
@@ -143,6 +158,14 @@ void gameState::render() {
             case 1:
                 machineManagement.render();
                 world.render();
+                // Update grass shader with lighting before rendering
+                resourceManager::updateGrassUniforms(
+                    static_cast<float>(GetTime()), camera.position,
+                    sunData.sunDirection, sunData.sunColor,
+                    sunData.ambientStrength, sunData.ambientColor,
+                    sunData.shiftIntensity, sunData.shiftDisplacement
+                );
+                world.renderGrass(static_cast<float>(GetTime()), camera);
              break;
             case 2:
                 switch (debugOpt) {
@@ -157,6 +180,9 @@ void gameState::render() {
              break;
         }
         EndMode3D();
+        EndTextureMode();
+        DrawTexturePro(renderCanvas.texture, Rectangle{0, 0, GAMEWIDTH, -GAMEHEIGHT}, Rectangle{0, 0, GAMEWIDTH * GAMESCALE, GAMEHEIGHT * GAMESCALE}, Vector2{0, 0}, 0, WHITE);
+        
         rlImGuiBegin();
     
         /*
@@ -172,8 +198,16 @@ void gameState::render() {
         ImGui::RadioButton("mesh", &renderMode, 1);
         ImGui::RadioButton("debug", &renderMode, 2);
         ImGui::Combo("mode", &debugOpt, "moisture\0temperature\0magmatic potential\0sulfide potential\0hydrological potential\0biological potential\0crystaline potential\0");
-
+        ImGui::Separator();
+        ImGui::Checkbox("World Gen Debug", &showWorldGenDebug);
+        ImGui::Separator();
+        ImGui::Text("Grass blades: %zu", world.getTotalGrassBlades());
         ImGui::End();
+        
+        // World Gen Debug Window
+        if (showWorldGenDebug) {
+            renderWorldGenDebugUI();
+        }
 
         ImGui::Begin("Build");
         const char* direction_names[] = {"NORTH", "EAST", "SOUTH", "WEST"};
@@ -205,11 +239,150 @@ void gameState::render() {
             ImGui::End();
         }
         rlImGuiEnd();
-        EndTextureMode();
+
         
         
-        DrawTexturePro(renderCanvas.texture, Rectangle{0, 0, GAMEWIDTH, -GAMEHEIGHT}, Rectangle{0, 0, GAMEWIDTH * GAMESCALE, GAMEHEIGHT * GAMESCALE}, Vector2{0, 0}, 0, WHITE);
         
         DrawFPS(0, 0);
     EndDrawing();
+}
+
+void gameState::renderWorldGenDebugUI() {
+    ImGui::Begin("World Generation", &showWorldGenDebug);
+    
+    WorldGenerator& worldGen = WorldGenerator::getInstance();
+    WorldGenConfig& config = worldGen.getConfig();
+    
+    // Current position info
+    ImGui::Text("Camera Position: (%.1f, %.1f, %.1f)", cameraPosition.x, cameraPosition.y, cameraPosition.z);
+    
+    // Sample potentials at camera position
+    PotentialData potential = worldGen.getPotentialAt(cameraPosition.x, cameraPosition.z);
+    BiomeType biome = BiomeManager::getInstance().getBiomeAt(potential);
+    const BiomeData& biomeData = BiomeManager::getInstance().getBiomeData(biome);
+    
+    ImGui::Separator();
+    ImGui::Text("Current Biome: %s", biomeData.name);
+    
+    // Potentials display
+    ImGui::Separator();
+    ImGui::Text("Potentials at Camera:");
+    
+    ImGui::PushStyleColor(ImGuiCol_PlotHistogram, ImVec4(0.8f, 0.2f, 0.1f, 1.0f));
+    ImGui::ProgressBar(potential.magmatic, ImVec2(-1, 0), "Magmatic");
+    ImGui::PopStyleColor();
+    
+    ImGui::PushStyleColor(ImGuiCol_PlotHistogram, ImVec4(0.1f, 0.4f, 0.8f, 1.0f));
+    ImGui::ProgressBar(potential.hydrological, ImVec2(-1, 0), "Hydrological");
+    ImGui::PopStyleColor();
+    
+    ImGui::PushStyleColor(ImGuiCol_PlotHistogram, ImVec4(0.8f, 0.7f, 0.1f, 1.0f));
+    ImGui::ProgressBar(potential.sulfide, ImVec2(-1, 0), "Sulfide");
+    ImGui::PopStyleColor();
+    
+    ImGui::PushStyleColor(ImGuiCol_PlotHistogram, ImVec4(0.6f, 0.2f, 0.8f, 1.0f));
+    ImGui::ProgressBar(potential.crystalline, ImVec2(-1, 0), "Crystalline");
+    ImGui::PopStyleColor();
+    
+    ImGui::PushStyleColor(ImGuiCol_PlotHistogram, ImVec4(0.2f, 0.7f, 0.2f, 1.0f));
+    ImGui::ProgressBar(potential.biological, ImVec2(-1, 0), "Biological");
+    ImGui::PopStyleColor();
+    
+    ImGui::Separator();
+    ImGui::Text("Climate:");
+    
+    ImGui::PushStyleColor(ImGuiCol_PlotHistogram, ImVec4(0.9f, 0.4f, 0.1f, 1.0f));
+    ImGui::ProgressBar(potential.temperature, ImVec2(-1, 0), "Temperature");
+    ImGui::PopStyleColor();
+    
+    ImGui::PushStyleColor(ImGuiCol_PlotHistogram, ImVec4(0.2f, 0.5f, 0.9f, 1.0f));
+    ImGui::ProgressBar(potential.humidity, ImVec2(-1, 0), "Humidity");
+    ImGui::PopStyleColor();
+    
+    // Config tweaking
+    ImGui::Separator();
+    if (ImGui::CollapsingHeader("Generation Config")) {
+        bool configChanged = false;
+        
+        configChanged |= ImGui::SliderInt("Seed", &config.seed, 0, 9999);
+        configChanged |= ImGui::SliderFloat("Height Scale", &config.heightScale, 10.0f, 200.0f);
+        configChanged |= ImGui::SliderFloat("Height Exponent", &config.heightExponent, 0.5f, 3.0f);
+        configChanged |= ImGui::SliderFloat("Terrain Freq", &config.terrainFreq, 0.005f, 0.1f, "%.4f");
+        configChanged |= ImGui::SliderFloat("Potential Freq", &config.potentialFreq, 0.001f, 0.05f, "%.4f");
+        configChanged |= ImGui::SliderFloat("Climate Freq", &config.climateFreq, 0.001f, 0.02f, "%.4f");
+        
+        ImGui::Separator();
+        ImGui::Text("Thresholds:");
+        configChanged |= ImGui::SliderFloat("Geo Override", &config.geologicalOverrideThreshold, 0.5f, 0.95f);
+        configChanged |= ImGui::SliderFloat("Sea Level", &config.seaLevel, 0.0f, 50.0f);
+        
+        ImGui::Separator();
+        ImGui::Text("Feedback Loop:");
+        configChanged |= ImGui::SliderFloat("Slope->Sulfide", &config.slopeToSulfide, 0.0f, 1.0f);
+        configChanged |= ImGui::SliderFloat("Slope->Crystal", &config.slopeToCrystalline, 0.0f, 1.0f);
+        configChanged |= ImGui::SliderFloat("Flow->Bio", &config.flowToBiological, 0.0f, 1.0f);
+        configChanged |= ImGui::SliderFloat("Flow->Hydro", &config.flowToHydrological, 0.0f, 1.0f);
+        
+        if (configChanged) {
+            // Rebuild noise generators with new config
+            worldGen.rebuildNoiseGenerators();
+        }
+    }
+    
+    // WorldMap / Erosion Config
+    if (ImGui::CollapsingHeader("Erosion & Water")) {
+        WorldMap& worldMap = WorldMap::getInstance();
+        ErosionConfig& erosion = worldMap.getErosionConfig();
+        
+        ImGui::Text("Erosion Simulation:");
+        ImGui::SliderInt("Droplets", &erosion.numDroplets, 0, 20000);
+        ImGui::SliderInt("Max Lifetime", &erosion.maxDropletLifetime, 10, 200);
+        ImGui::SliderFloat("Inertia", &erosion.inertia, 0.0f, 1.0f);
+        ImGui::SliderFloat("Sediment Capacity", &erosion.sedimentCapacity, 0.1f, 10.0f);
+        ImGui::SliderFloat("Erode Speed", &erosion.erodeSpeed, 0.01f, 0.5f);
+        ImGui::SliderFloat("Deposit Speed", &erosion.depositSpeed, 0.01f, 0.5f);
+        ImGui::SliderFloat("Evaporate Speed", &erosion.evaporateSpeed, 0.001f, 0.1f);
+        ImGui::SliderFloat("Gravity", &erosion.gravity, 0.5f, 10.0f);
+        ImGui::SliderFloat("Max Erode/Step", &erosion.maxErodePerStep, 0.01f, 0.2f);
+        ImGui::SliderInt("Erosion Radius", &erosion.erosionRadius, 1, 5);
+        
+        ImGui::Separator();
+        ImGui::Text("Lakes:");
+        ImGui::SliderFloat("Min Water Depth", &erosion.waterMinDepth, 0.1f, 2.0f);
+        ImGui::SliderInt("Lake Dilation", &erosion.lakeDilation, 0, 5);
+        
+        ImGui::Separator();
+        ImGui::Text("Rivers:");
+        ImGui::SliderInt("Flow Threshold", &erosion.riverFlowThreshold, 10, 500);
+        ImGui::SliderFloat("Width Scale", &erosion.riverWidthScale, 0.001f, 0.1f, "%.3f");
+        ImGui::SliderInt("Max River Width", &erosion.maxRiverWidth, 1, 10);
+        ImGui::SliderFloat("River Depth", &erosion.riverDepth, 0.1f, 1.0f);
+        
+        ImGui::Separator();
+        if (ImGui::Button("Regenerate Terrain")) {
+            // Set flag to regenerate on next update (after ImGui frame ends)
+            shouldRegenerateTerrain = true;
+        }
+        ImGui::SameLine();
+        ImGui::TextDisabled("(Clears all chunks)");
+    }
+    
+    // Biome list
+    if (ImGui::CollapsingHeader("Biome List")) {
+        for (int i = 0; i < static_cast<int>(BiomeType::COUNT); ++i) {
+            const BiomeData& b = BiomeManager::getInstance().getBiomeData(static_cast<BiomeType>(i));
+            if (b.name) {
+                bool isCurrent = (static_cast<BiomeType>(i) == biome);
+                if (isCurrent) {
+                    ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.2f, 1.0f, 0.2f, 1.0f));
+                }
+                ImGui::BulletText("%s (H:%.1f, R:%.1f)", b.name, b.heightMultiplier, b.roughness);
+                if (isCurrent) {
+                    ImGui::PopStyleColor();
+                }
+            }
+        }
+    }
+    
+    ImGui::End();
 }

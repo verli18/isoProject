@@ -26,6 +26,42 @@ class sun{
     }
 };
 
+// Cached shader uniform locations to avoid querying every frame
+struct TerrainShaderLocs {
+    int sunDirection;
+    int sunColor;
+    int ambientStrength;
+    int ambientColor;
+    int shiftIntensity;
+    int shiftDisplacement;
+};
+
+struct WaterShaderLocs {
+    int waterHue;
+    int waterSaturation;
+    int waterValue;
+    int minDepth;
+    int maxDepth;
+    int minAlpha;
+    int maxAlpha;
+    int time;
+};
+
+struct GrassShaderLocs {
+    int mvp;
+    int viewPos;
+    int time;
+    int windStrength;
+    int windDirection;
+    int windSpeed;
+    int sunDirection;
+    int sunColor;
+    int ambientStrength;
+    int ambientColor;
+    int shiftIntensity;
+    int shiftDisplacement;
+};
+
 class resourceManager {
 public:
     // Initialize and load all machine assets
@@ -55,6 +91,17 @@ public:
     
     // Update water time for displacement animation
     static void updateWaterTime(float time);
+    
+    // Update grass shader uniforms
+    static void updateGrassUniforms(float time, Vector3 cameraPos,
+                                    Vector3 sunDirection, Vector3 sunColor,
+                                    float ambientStrength, Vector3 ambientColor,
+                                    float shiftIntensity, float shiftDisplacement);
+    
+    // Get grass shader and material
+    static Shader& getGrassShader();
+    static Material& getGrassMaterial();
+    static GrassShaderLocs& getGrassShaderLocs();
 
     static Texture2D terrainTexture;
     static Texture2D waterTexture;
@@ -62,6 +109,9 @@ public:
 private:
     // Prevent instantiation
     resourceManager() = delete;
+
+    // Cache shader locations on init
+    static void cacheShaderLocations();
 
     static Texture2D itemTexture;
     static bool initialized;
@@ -72,4 +122,11 @@ private:
     static std::unordered_map<machineType, std::string> texturePaths;
     static Shader terrainShader;
     static Shader waterShader;
+    static Shader grassShader;
+    static Material grassMaterial;
+    
+    // Cached uniform locations
+    static TerrainShaderLocs terrainLocs;
+    static WaterShaderLocs waterLocs;
+    static GrassShaderLocs grassLocs;
 };

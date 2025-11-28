@@ -38,6 +38,7 @@ vec3 hsv2rgb(vec3 c) {
 
 void main() {
     float terrainHeight = fragTexCoord.x;  // Terrain height stored in texcoord.x
+    float flowAngle = fragTexCoord.y;      // Flow direction angle (0-2π) stored in texcoord.y
     float waterHeight = fragPosition.y;    // Current water surface Y position
     float depth = waterHeight - terrainHeight;
     
@@ -53,12 +54,27 @@ void main() {
     vec3 tintedBaseColor = hsv2rgb(hsv);
     
     // Sample texture using world position for UV coordinates with time-based movement
-    float textureScale = fragTexCoord.y; // Texture scale factor stored in texcoord.y
+    float textureScale = 0.5; // Fixed texture scale
     
-    // Add time-based movement to make ripples and foam flow
-    vec2 flowDirection = vec2(0.02, 0.015); // Flow direction and speed
-    vec2 timeOffset = time * flowDirection;
-    vec2 baseTextureUV = vec2(fragPosition.x * textureScale, fragPosition.z * textureScale) + timeOffset;
+    // Compute flow direction vector from angle
+    // flowAngle: 0=E, π/4=SE, π/2=S, etc.
+    vec2 flowDir = vec2(cos(flowAngle), sin(flowAngle));
+    
+    // For lakes/no flow (flowAngle near 0 with no valid direction), use ambient ripples
+    bool hasFlow = (flowAngle > 0.01);
+    
+    // Flow-based UV movement for rivers, ambient ripples for lakes
+    vec2 flowOffset;
+    if (hasFlow) {
+        // River flow - move UVs in flow direction
+        float flowSpeed = 0.15;
+        flowOffset = time * flowSpeed * flowDir;
+    } else {
+        // Lake/still water - slow ambient movement
+        flowOffset = time * vec2(0.02, 0.015);
+    }
+    
+    vec2 baseTextureUV = vec2(fragPosition.x * textureScale, fragPosition.z * textureScale) + flowOffset;
     
     // Sample displacement texture for wobbling effect
     float displacementScale = 0.8; // Scale factor for displacement texture
@@ -69,8 +85,9 @@ void main() {
     vec2 displacementOffset = (displacement.xy - 0.5) * 2.0;
     
     // Apply displacement with depth-based intensity to the flowing texture
-    float displacementIntensity = 0.06; // Base displacement strength
-    float depthDisplacementFactor = clamp((depth - 0.5) / 2.0, 0.0, 1.0); // Stronger displacement in deeper water
+    // Rivers have less displacement (more directional), lakes have more (ripples)
+    float displacementIntensity = hasFlow ? 0.03 : 0.06;
+    float depthDisplacementFactor = clamp((depth - 0.5) / 2.0, 0.0, 1.0);
     vec2 finalTextureUV = baseTextureUV + displacementOffset * displacementIntensity * (0.3 + depthDisplacementFactor * 0.7);
     
     vec4 textureColorWithAlpha = texture(texture0, finalTextureUV);
@@ -86,7 +103,7 @@ void main() {
     );
     
     // Get screen position for dithering with displacement offset
-    vec2 displacedScreenPos = gl_FragCoord.xy + displacementOffset * 8.0; // Apply displacement to dither pattern
+    vec2 displacedScreenPos = gl_FragCoord.xy + displacementOffset * 8.0;
     ivec2 screenPos = ivec2(displacedScreenPos);
     int x = screenPos.x % 2;
     int y = screenPos.y % 2;
@@ -105,15 +122,15 @@ void main() {
         float depthFactor = clamp((depth - 1.0) / 3.0, 0.0, 1.0);
         
         // Darken the texture based on depth
-        float darkenFactor = 1.0 - (depthFactor * 0.20); // Darken up to 60% in deep areas
+        float darkenFactor = 1.0 - (depthFactor * 0.20);
         vec3 darkenedTexture = textureColor * darkenFactor;
         
         // Shift texture towards deeper blue in deep areas
-        vec3 deepBlue = vec3(0.05, 0.5, 0.8); // Dark blue color for deep water
+        vec3 deepBlue = vec3(0.05, 0.5, 0.8);
         vec3 blueShiftedTexture = mix(darkenedTexture, darkenedTexture * deepBlue, depthFactor * 0.7);
         
         finalColor3 = blueShiftedTexture;
-        finalAlpha = alpha * textureColorWithAlpha.a; // Use texture alpha too
+        finalAlpha = alpha * textureColorWithAlpha.a;
     } else {
         // Show base tinted color
         finalColor3 = tintedBaseColor;

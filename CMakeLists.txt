@@ -23,7 +23,6 @@ include_directories(${RAYLIB_INCLUDE_DIRS})
 set(SOURCES
     src/main.cpp
     src/tileGrid.cpp
-    #src/marchingCubes.cpp
     src/chunk.cpp
     src/chunkManager.cpp
     src/machine.cpp
@@ -32,6 +31,10 @@ set(SOURCES
     src/gamestate.cpp
     src/item.cpp
     src/inventory.cpp
+    src/worldGenerator.cpp
+    src/worldMap.cpp
+    src/biome.cpp
+    src/grass.cpp
     libs/rlImGui/rlImGui.cpp
     libs/rlImGui/imgui/imgui.cpp
     libs/rlImGui/imgui/imgui_widgets.cpp
@@ -73,11 +76,8 @@ set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 
 # Copy shaders only if they exist
-if(EXISTS ${CMAKE_SOURCE_DIR}/src/terrainShader.vs)
-    file(COPY ${CMAKE_SOURCE_DIR}/src/terrainShader.vs DESTINATION ${CMAKE_BINARY_DIR}/src)
-endif()
-if(EXISTS ${CMAKE_SOURCE_DIR}/src/terrainShader.fs)
-    file(COPY ${CMAKE_SOURCE_DIR}/src/terrainShader.fs DESTINATION ${CMAKE_BINARY_DIR}/src)
+if(EXISTS ${CMAKE_SOURCE_DIR}/assets/shaders)
+    file(COPY ${CMAKE_SOURCE_DIR}/assets/shaders DESTINATION ${CMAKE_BINARY_DIR}/assets)
 endif()
 
 # Install target

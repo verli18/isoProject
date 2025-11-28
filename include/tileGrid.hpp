@@ -1,9 +1,9 @@
+#ifndef TILEGRID_HPP
+#define TILEGRID_HPP
+
 #include <vector>
 #include <raylib.h>
 #include <cstdint> // for uint64_t
-#include "FastNoise/FastNoise.h"
-#include "FastNoise/Generators/DomainWarp.h"
-#include "FastNoise/Generators/Cellular.h"
 
 #include "resourceManager.hpp"
 
@@ -38,8 +38,16 @@ struct tile{
     uint8_t hydrologicalPotential = 0;
     uint8_t biologicalPotential = 0;
     uint8_t crystalinePotential = 0;
+    
+    // Water data
     // Interpreted as absolute Y level in half-units: waterY = 0.5f * waterLevel
     uint8_t waterLevel = 0;
+    // River data: D8 flow direction (0-7 = E,SE,S,SW,W,NW,N,NE; 255 = no flow/lake)
+    uint8_t flowDir = 255;
+    // River width at this tile (0 = no river, 1-255 = river width category)
+    uint8_t riverWidth = 0;
+    // Marching squares case for river shape (0-15, based on neighbor connectivity)
+    uint8_t riverCase = 0;
 
     // Machine data
     machine* occupyingMachine = nullptr; // Pointer to machine on this tile
@@ -97,14 +105,7 @@ class tileGrid {
         int height;
         int depth;
         std::vector<std::vector<tile>> grid;
-        FastNoise::SmartNode<FastNoise::FractalFBm> fnFractal;
-        FastNoise::SmartNode<FastNoise::DomainWarpGradient> fnWarp;
-        FastNoise::SmartNode<FastNoise::FractalFBm> fnRegion;
-        FastNoise::SmartNode<FastNoise::FractalFBm> fnMoisture;
-        FastNoise::SmartNode<FastNoise::FractalFBm> fnTemperature;
-        FastNoise::SmartNode<FastNoise::FractalFBm> fnMagmatic;
-        FastNoise::SmartNode<FastNoise::FractalFBm> fnBiological;
-        FastNoise::SmartNode<FastNoise::FractalFBm> fnSulfide;
-        FastNoise::SmartNode<FastNoise::FractalRidged> fnCrystaline;
         
 };
+
+#endif // TILEGRID_HPP
