@@ -34,10 +34,23 @@ enum class BiomeType : uint8_t {
 };
 
 // Texture indices for each biome (maps to textureAtlas)
+// Texture indices for each biome (maps to textureAtlas)
 struct BiomeTextures {
-    uint8_t topTexture;      // Top surface
-    uint8_t sideTexture;     // Cliff/wall sides
-    uint8_t transitionTex;   // For blending (optional)
+    uint8_t primaryTexture;      // Top surface (index into texture atlas)
+    uint8_t secondaryTexture;    // For erosion/exposed ground
+    uint8_t transitionTexture;   // Optional, for special transitions
+};
+
+// Grass properties for the biome
+struct GrassProps {
+    bool enabled;              // Does this biome have grass?
+    float densityBase;         // Base density (0-1)
+    float densityVariation;    // How much noise/potential affects density
+    float heightMultiplier;    // Blade height scale
+    float patchiness;          // 0 = uniform, 1 = very patchy
+    float patchScale;          // Size of patches in world units
+    Vector3 tipColor;          // Grass tip color
+    Vector3 baseColor;         // Grass base color
 };
 
 // Complete biome definition
@@ -47,6 +60,9 @@ struct BiomeData {
     
     // Textures
     BiomeTextures textures;
+    
+    // Grass configuration
+    GrassProps grass;
     
     // Terrain generation parameters
     float heightMultiplier;    // Scale base height
@@ -68,6 +84,10 @@ struct BiomeData {
     // -1 = no override, 0-4 = magmatic/hydro/sulfide/crystal/bio
     int dominantPotential;
     float potentialThreshold;
+    
+    // Transition rules
+    BiomeType blendTargets[4];     // Which biomes this can blend to
+    float blendThresholds[4];      // At what parameter delta to blend
 };
 
 /**

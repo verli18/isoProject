@@ -162,6 +162,10 @@ void tileGrid::generatePerlinTerrain(float scale, int heightCo,
     std::vector<uint8_t> riverWidthGrid;
     worldMap.getRiverGrid(flowDirGrid, riverWidthGrid, baseGenOffset[0], baseGenOffset[1], width, height);
     
+    // Get erosion intensity data from WorldMap
+    std::vector<uint8_t> erosionGrid;
+    worldMap.getErosionGrid(erosionGrid, baseGenOffset[0], baseGenOffset[1], width, height);
+    
     // Height grid indexer (width+1 columns)
     auto hidx = [this](int x, int y) { return y * (this->width + 1) + x; };
 
@@ -174,9 +178,25 @@ void tileGrid::generatePerlinTerrain(float scale, int heightCo,
             // Get potentials from pre-computed grid
             PotentialData& potentials = potentialsGrid[idx(x, y)];
             
-            // Determine biome first (needed for height modification)
-            BiomeType biome = biomeMan.getBiomeAt(potentials);
+            // Determine biome and blending using BiomeManager
+            BiomeType primaryBiome, secondaryBiome;
+            float primaryWeight;
+            biomeMan.getBlendWeights(potentials, primaryBiome, secondaryBiome, primaryWeight);
             
+            t.biome = primaryBiome;
+            t.secondaryBiome = secondaryBiome;
+            t.blendStrength = static_cast<uint8_t>((1.0f - primaryWeight) * 255.0f);
+            
+            // Get textures from BiomeManager
+            t.type = biomeMan.getTopTexture(t.biome);
+            t.secondaryType = biomeMan.getTopTexture(t.secondaryBiome);
+            
+            // If primary and secondary are the same, ensure blend strength is 0
+            if (t.biome == t.secondaryBiome) {
+                t.blendStrength = 0;
+                t.secondaryType = t.type;
+            }
+
             // Get height values for the 4 corners from pre-computed grid
             // Heights are already scaled, shaped, and eroded by WorldMap
             float heightTL = heightGrid[hidx(x, y)];
@@ -189,10 +209,10 @@ void tileGrid::generatePerlinTerrain(float scale, int heightCo,
             float worldZ = static_cast<float>(baseGenOffset[1] + y);
             
             // Apply biome-specific terrain kernels to each corner
-            heightTL = biomeMan.modifyHeight(heightTL, biome, potentials, worldX, worldZ);
-            heightTR = biomeMan.modifyHeight(heightTR, biome, potentials, worldX + 1.0f, worldZ);
-            heightBL = biomeMan.modifyHeight(heightBL, biome, potentials, worldX, worldZ + 1.0f);
-            heightBR = biomeMan.modifyHeight(heightBR, biome, potentials, worldX + 1.0f, worldZ + 1.0f);
+            heightTL = biomeMan.modifyHeight(heightTL, t.biome, potentials, worldX, worldZ);
+            heightTR = biomeMan.modifyHeight(heightTR, t.biome, potentials, worldX + 1.0f, worldZ);
+            heightBL = biomeMan.modifyHeight(heightBL, t.biome, potentials, worldX, worldZ + 1.0f);
+            heightBR = biomeMan.modifyHeight(heightBR, t.biome, potentials, worldX + 1.0f, worldZ + 1.0f);
 
             // Convert to heights with quarter-unit quantization for smoother terrain
             // Multiplying by 4 then dividing by 4 gives 0.25 steps
@@ -203,7 +223,7 @@ void tileGrid::generatePerlinTerrain(float scale, int heightCo,
             
             // Clamp extreme slopes - allow up to 0.75 difference before walls form
             // With quarter steps, 0.75 = 3 quarter-steps, still walkable-looking
-            const float maxSlope = 1.0f;
+            const float maxSlope = 5.0f;
             for (int i = 0; i < 4; ++i) {
                 for (int j = i + 1; j < 4; ++j) {
                     float diff = t.tileHeight[i] - t.tileHeight[j];
@@ -253,24 +273,12 @@ void tileGrid::generatePerlinTerrain(float scale, int heightCo,
             float finalCrystaline = baseCrystaline * (0.2f + 0.8f * magmaticFactor) * (0.7f + 0.3f * elevationFactor);
             t.crystalinePotential = static_cast<uint8_t>(std::round(std::clamp(finalCrystaline, 0.0f, 1.0f) * 255.0f));
 
-            // Map BiomeType to tile texture
-            // Simple mapping: Snow, Cold Plains (grass), Plains (grass), Desert (sand)
-            switch (biome) {
-                case BiomeType::TUNDRA:
-                    t.type = SNOW;  // Snowy plains
-                    break;
-                case BiomeType::ARID_DESERT:
-                case BiomeType::SAVANNA:
-                    t.type = SAND;  // Desert
-                    break;
-                default:
-                    t.type = GRASS;  // Plains, Cold Plains, etc.
-                    break;
-            }
-
             // Initialize water level to 0 (will be set by new water system if needed)
             t.waterLevel = 0;
             t.hydrologicalPotential = 0;
+            
+            // Assign erosion factor from pre-computed erosion simulation
+            t.erosionFactor = erosionGrid[idx(x, y)];
 
             float avgHeight = (t.tileHeight[0] + t.tileHeight[1] + t.tileHeight[2] + t.tileHeight[3]) / 4.0f;
             groundElev[idx(x,y)] = avgHeight;
@@ -281,13 +289,6 @@ void tileGrid::generatePerlinTerrain(float scale, int heightCo,
         }
     }
 
-    // ============================================================
-    // WATER SYSTEM - Uses WorldMap for region-scale water computation
-    // ============================================================
-    // Water levels are computed at region scale (128x128 tiles) which
-    // eliminates chunk boundary artifacts for lakes and rivers.
-    
-    // Assign water levels from WorldMap water grid
     for (int y = 0; y < height; ++y) {
         for (int x = 0; x < width; ++x) {
             int i = idx(x, y);
@@ -335,283 +336,6 @@ void tileGrid::generatePerlinTerrain(float scale, int heightCo,
         }
     }
 
-    // OLD WATER SYSTEM DISABLED - Replaced with WorldMap region-scale system
-#if 0
-    // Hydrology pass: priority-flood depression filling on ground elevation
-    struct PFCell { int x, y; float level; };
-    struct Cmp { bool operator()(const PFCell& a, const PFCell& b) const { return a.level > b.level; } };
-    std::priority_queue<PFCell, std::vector<PFCell>, Cmp> pq;
-    std::vector<uint8_t> visited(N, 0);
-    std::vector<float> filled(N, 0.0f);
-
-    // Seed with border cells (act as outlets to outside world)
-    for (int x = 0; x < width; ++x) {
-        int i0 = idx(x, 0);
-        int i1 = idx(x, height - 1);
-        pq.push({x, 0, groundElev[i0]}); visited[i0] = 1; filled[i0] = groundElev[i0];
-        pq.push({x, height - 1, groundElev[i1]}); visited[i1] = 1; filled[i1] = groundElev[i1];
-    }
-    for (int y = 1; y < height - 1; ++y) {
-        int i0 = idx(0, y);
-        int i1 = idx(width - 1, y);
-        pq.push({0, y, groundElev[i0]}); visited[i0] = 1; filled[i0] = groundElev[i0];
-        pq.push({width - 1, y, groundElev[i1]}); visited[i1] = 1; filled[i1] = groundElev[i1];
-    }
-
-    const int dx4[4] = {1,-1,0,0};
-    const int dy4[4] = {0,0,1,-1};
-    while (!pq.empty()) {
-        PFCell c = pq.top(); pq.pop();
-        for (int k = 0; k < 4; ++k) {
-            int nx = c.x + dx4[k];
-            int ny = c.y + dy4[k];
-            if (nx < 0 || nx >= width || ny < 0 || ny >= height) continue;
-            int ni = idx(nx, ny);
-            if (visited[ni]) continue;
-            visited[ni] = 1;
-            float g = groundElev[ni];
-            float f = std::max(g, c.level);
-            filled[ni] = f;
-            pq.push({nx, ny, f});
-        }
-    }
-
-    // Determine water presence using a climate-dependent minimum depth threshold
-    std::vector<float> waterDepth(N, 0.0f);
-    // Sea level mask (per-tile) to force baseline ocean water independent of local depressions
-    std::vector<uint8_t> isSea(N, 0);
-    float seaBase = waterParams.seaLevelThreshold; // Interpreted in same height units as tile heights
-    for (int y = 0; y < height; ++y) {
-        for (int x = 0; x < width; ++x) {
-            int i = idx(x, y);
-            float rawDepth = std::max(0.0f, filled[i] - groundElev[i]);
-            rawDepth *= std::max(0.0f, waterParams.waterAmountScale);
-            float m = moist[i] / 255.0f;
-            float tnorm = temp[i] / 255.0f;
-            float evap = std::clamp((tnorm - waterParams.evapStart) / std::max(0.0001f, waterParams.evapRange), 0.0f, 1.0f);
-            float dryness = (1.0f - m);
-            // Threshold increases with dryness and evaporation pressure
-            float minDepth = waterParams.minDepthBase
-                           + waterParams.drynessCoeff * dryness
-                           + waterParams.evapCoeff    * evap;
-            waterDepth[i] = (rawDepth >= minDepth) ? rawDepth : 0.0f;
-            // --- Baseline sea level application ---
-            // If ground elevation is below configured sea level, guarantee water up to sea level.
-            if (groundElev[i] < seaBase) {
-                float baseline = seaBase - groundElev[i];
-                if (baseline > waterDepth[i]) waterDepth[i] = baseline;
-                if (baseline > 0.0f) isSea[i] = 1;
-                biol[i] = 30;
-
-            }
-        }
-    }
-
-    // Flatten lakes: group contiguous water tiles (4-neigh) with similar candidate water surface and assign a plateau
-    std::vector<float> waterSurfaceY(N, 0.0f);
-    std::vector<int> comp(N, -1);
-    int compId = 0;
-    const float levelEps = 0.01f; // tolerance for grouping (in world height units)
-    std::vector<int> q; q.reserve(N);
-    
-    // Candidate surface per cell: ground elevation + computed water depth (already includes sea baseline); ensures we never pull a lake below its filled spill level
-    auto surfaceLevel = [&](int index)->float { return groundElev[index] + waterDepth[index]; };
-    
-    for (int y = 0; y < height; ++y) {
-        for (int x = 0; x < width; ++x) {
-            int i = idx(x, y);
-            if (waterDepth[i] <= 0.01f || comp[i] != -1) continue; // skip dry or already processed
-            q.clear();
-            q.push_back(i); comp[i] = compId;
-            float sumLvl = 0.0f; int cnt = 0; size_t head = 0;
-            while (head < q.size()) {
-                int cur = q[head++];
-                float curSurf = surfaceLevel(cur);
-                sumLvl += curSurf; ++cnt;
-                int cx = cur % width; int cy = cur / width;
-                for (int k = 0; k < 4; ++k) {
-                    int nx = cx + dx4[k];
-                    int ny = cy + dy4[k];
-                    if (nx < 0 || nx >= width || ny < 0 || ny >= height) continue;
-                    int ni = idx(nx, ny);
-                    if (comp[ni] != -1) continue;
-                    if (waterDepth[ni] <= 0.01f) continue;
-                    float nSurf = surfaceLevel(ni);
-                    if (fabsf(nSurf - curSurf) <= levelEps) { // same lake plateau
-                        comp[ni] = compId;
-                        q.push_back(ni);
-                    }
-                }
-            }
-            float plateau = (cnt > 0) ? (sumLvl / (float)cnt) : surfaceLevel(i);
-            plateau = roundf(plateau * 2.0f) / 2.0f; // quantize to half-unit increments
-            for (int id : q) waterSurfaceY[id] = plateau;
-            ++compId;
-        }
-    }
-
-    // Apply padding to water levels to prevent exposed water tiles
-    // Create a dilated version of water levels similar to mesh generation
-    std::vector<uint8_t> waterLevelMap(N, 0);
-    std::vector<uint8_t> dilatedWaterLevels(N, 0);
-    
-    // First pass: assign base water levels
-    for (int y = 0; y < height; ++y) {
-        for (int x = 0; x < width; ++x) {
-            int i = idx(x, y);
-            if (waterDepth[i] > 0.01f) {
-                float waterY = (comp[i] >= 0) ? waterSurfaceY[i] : surfaceLevel(i);
-                int quantized = (int)roundf(waterY * 2.0f); // store in half units
-                quantized = std::clamp(quantized, 0, heightCo * 2);
-                waterLevelMap[i] = (uint8_t)quantized - 1;
-                biol[i] = 30;
-            } else {
-                waterLevelMap[i] = 0;
-            }
-        }
-    }
-    
-    // Apply morphological dilation for padding (similar to water mesh generation)
-    const int waterPadding = std::max(1, waterParams.waterPad); // At least 1 tile of padding
-    for (int y = 0; y < height; ++y) {
-        for (int x = 0; x < width; ++x) {
-            int i = idx(x, y);
-            uint8_t maxLevel = waterLevelMap[i];
-            
-            // If this tile doesn't have water, check neighbors for water to extend
-            if (maxLevel == 0) {
-                for (int ox = -waterPadding; ox <= waterPadding; ++ox) {
-                    for (int oy = -waterPadding; oy <= waterPadding; ++oy) {
-                        int nx = x + ox, ny = y + oy;
-                        if (nx < 0 || nx >= width || ny < 0 || ny >= height) continue;
-                        uint8_t neighborLevel = waterLevelMap[idx(nx, ny)];
-                        if (neighborLevel > maxLevel) {
-                            maxLevel = neighborLevel;
-                        }
-                    }
-                }
-            }
-            dilatedWaterLevels[i] = maxLevel;
-        }
-    }
-    
-    // Assign final water levels back to tiles
-    for (int y = 0; y < height; ++y) {
-        for (int x = 0; x < width; ++x) {
-            int i = idx(x, y);
-            tile t = getTile(x, y);
-            t.waterLevel = dilatedWaterLevels[i];
-            setTile(x, y, t);
-        }
-    }
-
-    // Flow accumulation (D8) on filled surface to derive hydrologicalPotential
-    const int dx8[8] = {1,1,0,-1,-1,-1,0,1};
-    const int dy8[8] = {0,1,1,1,0,-1,-1,-1};
-    std::vector<int> receiver(N, -1);
-    for (int y = 0; y < height; ++y) {
-        for (int x = 0; x < width; ++x) {
-            int i = idx(x, y);
-            float elev = filled[i];
-            float bestDrop = 0.0f;
-            int bestIdx = -1;
-            for (int k = 0; k < 8; ++k) {
-                int nx = x + dx8[k];
-                int ny = y + dy8[k];
-                if (nx < 0 || nx >= width || ny < 0 || ny >= height) continue;
-                int ni = idx(nx, ny);
-                float drop = elev - filled[ni];
-                if (drop > bestDrop) { bestDrop = drop; bestIdx = ni; }
-            }                     
-            receiver[i] = bestIdx; // -1 indicates pit/outlet
-        }
-    }
-
-    // Topological order by filled elevation ascending
-    std::vector<int> order(N);
-    for (int i = 0; i < N; ++i) order[i] = i;
-    std::sort(order.begin(), order.end(), [&](int a, int b){ return filled[a] < filled[b]; });
-
-    std::vector<float> acc(N, 1.0f); // uniform rainfall
-    for (int i = 0; i < N; ++i) {
-        int c = order[i];
-        int r = receiver[c];
-        if (r >= 0) acc[r] += acc[c];
-    }
-
-    float maxAcc = 0.0f; for (float a : acc) if (a > maxAcc) maxAcc = a;
-    float logMax = logf(maxAcc + 1.0f);
-
-    // Add slope weighting to make channels more coherent
-    std::vector<float> slopeW(N, 0.0f);
-    for (int y = 0; y < height; ++y) {
-        for (int x = 0; x < width; ++x) {
-            int i = idx(x, y);
-            float here = groundElev[i];
-            float minN = here;
-            for (int k = 0; k < 8; ++k) {
-                int nx = x + dx8[k];
-                int ny = y + dy8[k];
-                if (nx < 0 || nx >= width || ny < 0 || ny >= height) continue;
-                minN = std::min(minN, groundElev[idx(nx, ny)]);
-            }
-            float s = std::max(0.0f, here - minN); // local drop
-            slopeW[i] = std::clamp(s / 2.0f, 0.0f, 1.0f); // normalize assuming <=2 units typical between neighbors
-        }
-    }
-
-    std::vector<float> hydroN(N, 0.0f);
-    for (int y = 0; y < height; ++y) {
-        for (int x = 0; x < width; ++x) {
-            int i = idx(x, y);
-            float norm = (logf(acc[i] + 1.0f) / (logMax > 0 ? logMax : 1.0f));
-            float m = moist[i] / 255.0f;
-            float hydro = norm * (0.5f + 0.5f * m) * (0.4f + 0.6f * slopeW[i]);
-            hydroN[i] = std::clamp(hydro, 0.0f, 1.0f);
-        }
-    }
-
-    // Light 3x3 blur to smooth speckles (1 iteration)
-    std::vector<float> hydroBlur(N, 0.0f);
-    for (int y = 0; y < height; ++y) {
-        for (int x = 0; x < width; ++x) {
-            float sum = 0.0f; int cnt = 0;
-            for (int oy = -1; oy <= 1; ++oy) {
-                for (int ox = -1; ox <= 1; ++ox) {
-                    int nx = x + ox, ny = y + oy;
-                    if (nx < 0 || nx >= width || ny < 0 || ny >= height) continue;
-                    sum += hydroN[idx(nx, ny)]; cnt++;
-                }
-            }
-            hydroBlur[idx(x, y)] = sum / std::max(1, cnt);
-        }
-    }
-
-    for (int y = 0; y < height; ++y) {
-        for (int x = 0; x < width; ++x) {
-            tile t = getTile(x, y);
-            t.hydrologicalPotential = (uint8_t)std::round(std::clamp(hydroBlur[idx(x, y)], 0.0f, 1.0f) * 255.0f) + biol[idx(x, y)];
-
-            // --- Biological Potential ---
-            // Use pre-computed potentials grid
-            float baseBio = potentialsGrid[idx(x, y)].biological;
-            
-            float moistureFactor = t.moisture / 127.0f; // 0-1 moisture factor
-            float hydroFactor = t.hydrologicalPotential / 127.0f;
-
-            // Temperature suitability (ideal around 128, falls off towards 0 and 255)
-            float tempDist = std::abs(t.temperature - 128.0f) / 128.0f; // 0 at ideal, 1 at extremes
-            float tempFactor = 1.0f - tempDist;
-
-            // Combine factors
-            float finalBio = baseBio * moistureFactor * (0.5f + hydroFactor * 0.5f) * tempFactor;
-            
-            t.biologicalPotential = (uint8_t)std::round(std::clamp(finalBio, 0.0f, 1.0f) * 255.0f);
-
-            setTile(x, y, t);
-        }
-    }
-#endif // OLD WATER SYSTEM DISABLED
 }
 
 // Ray-based tile picking: intersect ray with mesh of tile surfaces
@@ -697,6 +421,7 @@ void tileGrid::generateMesh() {
     std::vector<Vector3> vertices;
     std::vector<Vector2> texcoords;
     std::vector<Vector3> normals;
+    std::vector<Color> colors;  // Store erosion data in vertex colors
 
     for(int x = 0; x < width; x++) {
         for(int y = 0; y < height; y++) {
@@ -714,73 +439,65 @@ void tileGrid::generateMesh() {
             float diag1_diff = fabsf(t.tileHeight[0] - t.tileHeight[2]);
             float diag2_diff = fabsf(t.tileHeight[1] - t.tileHeight[3]);
 
-            // --- Determine corner types ---
-            tile current = getTile(x, y);
-            tile top = (y > 0) ? getTile(x, y - 1) : current;
-            tile left = (x > 0) ? getTile(x - 1, y) : current;
-            tile topLeft = (x > 0 && y > 0) ? getTile(x - 1, y - 1) : current;
-            tile right = (x < width - 1) ? getTile(x + 1, y) : current;
-            tile topRight = (x < width - 1 && y > 0) ? getTile(x + 1, y - 1) : current;
-            tile bottom = (y < height - 1) ? getTile(x, y + 1) : current;
-            tile bottomLeft = (x > 0 && y < height - 1) ? getTile(x - 1, y + 1) : current;
-            tile bottomRight = (x < width - 1 && y < height - 1) ? getTile(x + 1, y + 1) : current;
-
-            char cornerTypeTL = getDominantType4(current, top, left, topLeft);
-            char cornerTypeTR = getDominantType4(current, top, right, topRight);
-            char cornerTypeBL = getDominantType4(current, bottom, left, bottomLeft);
-            char cornerTypeBR = getDominantType4(current, bottom, right, bottomRight);
-
+            // Vertex color encodes terrain data for shader:
+            // R = primary texture type (GRASS=1, SNOW=2, STONE=3, SAND=4)
+            // G = secondary texture type (for blending)
+            // B = blend strength (0=100% primary, 255=100% secondary)
+            // A = erosion factor (0-255)
+            Color tileDataColor = { 
+                static_cast<unsigned char>(t.type),         // Primary texture
+                static_cast<unsigned char>(t.secondaryType),// Secondary texture for blending
+                t.blendStrength,                            // Blend strength
+                t.erosionFactor                             // Erosion for dithering
+            };
+            
+            // Use the tile's primary type for texture coordinates
+            // The shader handles blending to secondary type via dithering
+            textureAtlas texAtlas = textures[t.type];
+            float uMin = (float)texAtlas.uOffset / atlasWidth;
+            float vMin = (float)texAtlas.vOffset / atlasHeight;
+            float uMax = (float)(texAtlas.uOffset + texAtlas.width) / atlasWidth;
+            float vMax = (float)(texAtlas.vOffset + texAtlas.height) / atlasHeight;
+            
             if (diag1_diff <= diag2_diff) {
                 // --- Split with diagonal v0-v2 ---
-                textureAtlas t1 = textures[cornerTypeTR];
-                textureAtlas t2 = textures[cornerTypeBL];
-
-                float uMin1 = (float)t1.uOffset / atlasWidth, vMin1 = (float)t1.vOffset / atlasHeight;
-                float uMax1 = (float)(t1.uOffset + t1.width) / atlasWidth, vMax1 = (float)(t1.vOffset + t1.height) / atlasHeight;
-                float uMin2 = (float)t2.uOffset / atlasWidth, vMin2 = (float)t2.vOffset / atlasHeight;
-                float uMax2 = (float)(t2.uOffset + t2.width) / atlasWidth, vMax2 = (float)(t2.vOffset + t2.height) / atlasHeight;
-
                 // Triangle 1: v0, v1, v2
                 vertices.push_back(v0); vertices.push_back(v1); vertices.push_back(v2);
-                texcoords.push_back(Vector2{uMin1, vMin1}); texcoords.push_back(Vector2{uMax1, vMin1}); texcoords.push_back(Vector2{uMax1, vMax1});
+                texcoords.push_back(Vector2{uMin, vMin}); texcoords.push_back(Vector2{uMax, vMin}); texcoords.push_back(Vector2{uMax, vMax});
                 Vector3 n1_edge1 = Vector3Subtract(v1, v0);
                 Vector3 n1_edge2 = Vector3Subtract(v2, v0);
                 Vector3 normal1 = Vector3Normalize(Vector3CrossProduct(n1_edge1, n1_edge2));
                 normals.push_back(normal1); normals.push_back(normal1); normals.push_back(normal1);
+                colors.push_back(tileDataColor); colors.push_back(tileDataColor); colors.push_back(tileDataColor);
                 
                 // Triangle 2: v0, v2, v3
                 vertices.push_back(v0); vertices.push_back(v2); vertices.push_back(v3);
-                texcoords.push_back(Vector2{uMin2, vMin2}); texcoords.push_back(Vector2{uMax2, vMax2}); texcoords.push_back(Vector2{uMin2, vMax2});
+                texcoords.push_back(Vector2{uMin, vMin}); texcoords.push_back(Vector2{uMax, vMax}); texcoords.push_back(Vector2{uMin, vMax});
                 Vector3 n2_edge1 = Vector3Subtract(v2, v0);
                 Vector3 n2_edge2 = Vector3Subtract(v3, v0);
                 Vector3 normal2 = Vector3Normalize(Vector3CrossProduct(n2_edge1, n2_edge2));
                 normals.push_back(normal2); normals.push_back(normal2); normals.push_back(normal2);
+                colors.push_back(tileDataColor); colors.push_back(tileDataColor); colors.push_back(tileDataColor);
 
             } else {
                 // --- Split with diagonal v1-v3 ---
-                textureAtlas t1 = textures[cornerTypeBR];
-                textureAtlas t2 = textures[cornerTypeTL];
-
-                float uMin1 = (float)t1.uOffset / atlasWidth, vMin1 = (float)t1.vOffset / atlasHeight;
-                float uMax1 = (float)(t1.uOffset + t1.width) / atlasWidth, vMax1 = (float)(t1.vOffset + t1.height) / atlasHeight;
-                float uMin2 = (float)t2.uOffset / atlasWidth, vMin2 = (float)t2.vOffset / atlasHeight;
-                float uMax2 = (float)(t2.uOffset + t2.width) / atlasWidth, vMax2 = (float)(t2.vOffset + t2.height) / atlasHeight;
-
                 // Triangle 1: v1, v2, v3
                 vertices.push_back(v1); vertices.push_back(v2); vertices.push_back(v3);
-                texcoords.push_back(Vector2{uMax1, vMin1}); texcoords.push_back(Vector2{uMax1, vMax1}); texcoords.push_back(Vector2{uMin1, vMax1});
+                texcoords.push_back(Vector2{uMax, vMin}); texcoords.push_back(Vector2{uMax, vMax}); texcoords.push_back(Vector2{uMin, vMax});
                 Vector3 n1_edge1 = Vector3Subtract(v2, v1);
                 Vector3 n1_edge2 = Vector3Subtract(v3, v1);
                 Vector3 normal1 = Vector3Normalize(Vector3CrossProduct(n1_edge1, n1_edge2));
                 normals.push_back(normal1); normals.push_back(normal1); normals.push_back(normal1);
+                colors.push_back(tileDataColor); colors.push_back(tileDataColor); colors.push_back(tileDataColor);
 
                 // Triangle 2: v1, v3, v0
                 vertices.push_back(v1); vertices.push_back(v3); vertices.push_back(v0);
-                texcoords.push_back(Vector2{uMax2, vMin2}); texcoords.push_back(Vector2{uMin2, vMax2}); texcoords.push_back(Vector2{uMin2, vMin2});
+                texcoords.push_back(Vector2{uMax, vMin}); texcoords.push_back(Vector2{uMin, vMax}); texcoords.push_back(Vector2{uMin, vMin});
                 Vector3 n2_edge1 = Vector3Subtract(v3, v1);
                 Vector3 n2_edge2 = Vector3Subtract(v0, v1);
                 Vector3 normal2 = Vector3Normalize(Vector3CrossProduct(n2_edge1, n2_edge2));
                 normals.push_back(normal2); normals.push_back(normal2); normals.push_back(normal2);
+                colors.push_back(tileDataColor); colors.push_back(tileDataColor); colors.push_back(tileDataColor);
             }
             
             // Generate side faces (walls) where there are height differences
@@ -789,6 +506,9 @@ void tileGrid::generateMesh() {
             float sideVMin = (float)textures[t.type].sideVOffset / atlasHeight;
             float sideUMax = (float)(textures[t.type].sideUOffset + textures[t.type].width) / atlasWidth;
             float sideVMax = (float)(textures[t.type].sideVOffset + textures[t.type].height) / atlasHeight;
+            
+            // Walls always show exposed rock texture (full erosion)
+            Color wallColor = { 255, 255, 255, 255 };
             
             // Check each edge for height differences and generate wall faces only where needed
             
@@ -812,6 +532,7 @@ void tileGrid::generateMesh() {
                     Vector3 wallNormal = {0, 0, 1};
                     for(int i = 0; i < 6; i++) {
                         normals.push_back(wallNormal);
+                        colors.push_back(wallColor);
                     }
                 }
             }
@@ -836,6 +557,7 @@ void tileGrid::generateMesh() {
                     Vector3 wallNormal = {-1, 0, 0};
                     for(int i = 0; i < 6; i++) {
                         normals.push_back(wallNormal);
+                        colors.push_back(wallColor);
                     }
                 }
             }
@@ -860,6 +582,7 @@ void tileGrid::generateMesh() {
                     Vector3 wallNormal = {0, 0, -1};
                     for(int i = 0; i < 6; i++) {
                         normals.push_back(wallNormal);
+                        colors.push_back(wallColor);
                     }
                 }
             }
@@ -884,6 +607,7 @@ void tileGrid::generateMesh() {
                     Vector3 wallNormal = {1, 0, 0};
                     for(int i = 0; i < 6; i++) {
                         normals.push_back(wallNormal);
+                        colors.push_back(wallColor);
                     }
                 }
             }
@@ -902,6 +626,7 @@ void tileGrid::generateMesh() {
     mesh.vertices = (float*)MemAlloc(vertexCount * 3 * sizeof(float));
     mesh.texcoords = (float*)MemAlloc(vertexCount * 2 * sizeof(float));
     mesh.normals = (float*)MemAlloc(vertexCount * 3 * sizeof(float));
+    mesh.colors = (unsigned char*)MemAlloc(vertexCount * 4 * sizeof(unsigned char));  // RGBA colors for erosion
     
     // Copy vertex data
     for(int i = 0; i < vertexCount; i++) {
@@ -915,6 +640,12 @@ void tileGrid::generateMesh() {
         mesh.normals[i * 3 + 0] = normals[i].x;
         mesh.normals[i * 3 + 1] = normals[i].y;
         mesh.normals[i * 3 + 2] = normals[i].z;
+        
+        // Copy color (RGBA)
+        mesh.colors[i * 4 + 0] = colors[i].r;
+        mesh.colors[i * 4 + 1] = colors[i].g;
+        mesh.colors[i * 4 + 2] = colors[i].b;
+        mesh.colors[i * 4 + 3] = colors[i].a;  // Erosion in alpha
     }
     
     UploadMesh(&mesh, true);

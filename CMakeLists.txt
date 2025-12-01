@@ -35,6 +35,7 @@ set(SOURCES
     src/worldMap.cpp
     src/biome.cpp
     src/grass.cpp
+    src/visualSettings.cpp
     libs/rlImGui/rlImGui.cpp
     libs/rlImGui/imgui/imgui.cpp
     libs/rlImGui/imgui/imgui_widgets.cpp

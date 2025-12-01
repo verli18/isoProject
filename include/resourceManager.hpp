@@ -5,7 +5,9 @@
 #include <unordered_map>
 #include <string>
 #include "machines.hpp"
+#include "visualSettings.hpp"
 
+// DEPRECATED: Use VisualSettings::getInstance().getLightingSettings() instead
 class sun{
     public:
     
@@ -17,12 +19,14 @@ class sun{
     float shiftDisplacement;
 
     sun(){
-        sunDirection = {0.59f, -1.0f, -0.8f};  // Direction from sun to ground
-        sunColor = {1.0f, 0.9f, 0.7f};       // Warm sun color
-        ambientStrength = 0.5f;                 // Ambient light strength
-        ambientColor = {0.4f, 0.5f, 0.8f};   // Cool ambient color
-        shiftIntensity = -0.05f;
-        shiftDisplacement = 1.86f;
+        // Pull from VisualSettings if initialized, otherwise use defaults
+        LightingSettings& light = VisualSettings::getInstance().getLightingSettings();
+        sunDirection = light.sunDirection;
+        sunColor = light.sunColor;
+        ambientStrength = light.ambientStrength;
+        ambientColor = light.ambientColor;
+        shiftIntensity = light.shiftIntensity;
+        shiftDisplacement = light.shiftDisplacement;
     }
 };
 
@@ -34,6 +38,17 @@ struct TerrainShaderLocs {
     int ambientColor;
     int shiftIntensity;
     int shiftDisplacement;
+    // Erosion dithering uniforms
+    int erosionThreshold;
+    int erosionFullExpose;
+    int ditherIntensity;
+    // Per-biome exposed texture U offsets
+    int grassExposedU;
+    int snowExposedU;
+    int sandExposedU;
+    int stoneExposedU;
+    // Visualization mode
+    int visualizationMode;
 };
 
 struct WaterShaderLocs {
@@ -60,6 +75,26 @@ struct GrassShaderLocs {
     int ambientColor;
     int shiftIntensity;
     int shiftDisplacement;
+    // Grass color uniforms - warm biome
+    int grassTipColor;
+    int grassBaseColor;
+    // Tundra colors (cold but not frozen)
+    int tundraTipColor;
+    int tundraBaseColor;
+    // Snow/frozen colors
+    int snowTipColor;
+    int snowBaseColor;
+    // Desert colors (hot/dry)
+    int desertTipColor;
+    int desertBaseColor;
+    // Temperature thresholds for biome blending - cold
+    int tundraStartTemp;
+    int tundraFullTemp;
+    int snowStartTemp;
+    int snowFullTemp;
+    // Temperature thresholds for biome blending - hot
+    int desertStartTemp;
+    int desertFullTemp;
 };
 
 class resourceManager {
@@ -102,6 +137,12 @@ public:
     static Shader& getGrassShader();
     static Material& getGrassMaterial();
     static GrassShaderLocs& getGrassShaderLocs();
+    
+    // Apply all settings from VisualSettings singleton
+    static void applyVisualSettings();
+    
+    // Update grass wind parameters from VisualSettings
+    static void updateGrassWindSettings();
 
     static Texture2D terrainTexture;
     static Texture2D waterTexture;

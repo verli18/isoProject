@@ -1,0 +1,4 @@
+[ 37%] Built target FastNoise
+[ 40%] Building CXX object CMakeFiles/IsometricGame.dir/src/resourceManager.cpp.o
+[ 42%] Linking CXX executable IsometricGame
+[100%] Built target IsometricGame

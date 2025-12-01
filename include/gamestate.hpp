@@ -6,10 +6,11 @@
 #include "machineManager.hpp"
 #include "worldGenerator.hpp"
 #include "biome.hpp"
+#include "visualSettings.hpp"
 
 #define GAMEWIDTH 480
 #define GAMEHEIGHT 270
-#define GAMESCALE 2
+#define GAMESCALE 3
 
 class gameState{
     public:
@@ -22,14 +23,14 @@ class gameState{
     }
 
     bool buildMode = false;
-    bool showWorldGenDebug = false;  // Toggle for world gen debug window
+    bool showVisualSettings = false; // Toggle for unified settings panel
     bool shouldRegenerateTerrain = false;  // Flag to trigger regeneration
     void init();
     void update();
     void render();
     
-    // Debug UI for world generation
-    void renderWorldGenDebugUI();
+    // Unified settings UI (combines visual + world gen + erosion)
+    void renderSettingsUI();
     
     chunkManager world;
     machineManager machineManagement;

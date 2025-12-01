@@ -83,6 +83,11 @@ struct RegionData {
     std::vector<uint8_t> flowDir;        // D8 flow direction (0-7, 255 = pit)
     std::vector<uint8_t> riverWidth;     // River width at this tile (0 = no river)
     
+    // Erosion intensity per tile (0-255)
+    // 0 = depositional/flat area (full vegetation)
+    // 255 = heavily eroded (exposed soil/rock)
+    std::vector<uint8_t> erosionIntensity;
+    
     // Generation state
     bool heightsGenerated = false;
     bool potentialsGenerated = false;
@@ -150,6 +155,13 @@ public:
     void getRiverGrid(
         std::vector<uint8_t>& flowDirOut,
         std::vector<uint8_t>& riverWidthOut,
+        int chunkWorldX, int chunkWorldZ,
+        int width, int height
+    );
+    
+    // Get erosion intensity for a chunk area
+    void getErosionGrid(
+        std::vector<uint8_t>& erosionOut,
         int chunkWorldX, int chunkWorldZ,
         int width, int height
     );

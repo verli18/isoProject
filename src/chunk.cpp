@@ -82,6 +82,7 @@ void Chunk::generateGrassData() {
     std::vector<uint8_t> temps;
     std::vector<uint8_t> moists;
     std::vector<uint8_t> bios;
+    std::vector<uint8_t> erosions;
     
     // Heights: (w+1) x (h+1) corner vertices
     heights.resize((w + 1) * (h + 1));
@@ -104,23 +105,28 @@ void Chunk::generateGrassData() {
     }
     
     // Per-tile data
-    types.resize(w * h);
+    std::vector<BiomeType> biomes;
+    biomes.resize(w * h);
+    types.resize(w * h); // Kept for debug/other uses if needed, though grass doesn't use it now
     temps.resize(w * h);
     moists.resize(w * h);
     bios.resize(w * h);
+    erosions.resize(w * h);
     
     for (int z = 0; z < h; ++z) {
         for (int x = 0; x < w; ++x) {
             tile t = tiles.getTile(x, z);
             int idx = z * w + x;
+            biomes[idx] = t.biome;
             types[idx] = static_cast<uint8_t>(t.type);
             temps[idx] = t.temperature;
             moists[idx] = t.moisture;
             bios[idx] = t.biologicalPotential;
+            erosions[idx] = t.erosionFactor;
         }
     }
     
-    grass.generate(chunkX, chunkY, w, h, heights, types, temps, moists, bios);
+    grass.generate(chunkX, chunkY, w, h, heights, biomes, temps, moists, bios, erosions);
 }
 
 void Chunk::updateMesh() {

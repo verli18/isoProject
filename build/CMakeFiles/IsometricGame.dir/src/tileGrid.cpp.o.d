@@ -171,7 +171,8 @@ CMakeFiles/IsometricGame.dir/src/tileGrid.cpp.o: \
  /usr/include/c++/15.2.1/optional \
  /home/chrma/Documents/programming/isoProject/src/../include/inventory.hpp \
  /home/chrma/Documents/programming/isoProject/src/../include/item.hpp \
- /home/chrma/Documents/programming/isoProject/src/../include/textureAtlas.hpp \
+ /home/chrma/Documents/programming/isoProject/src/../include/visualSettings.hpp \
+ /home/chrma/Documents/programming/isoProject/src/../include/biome.hpp \
  /home/chrma/Documents/programming/isoProject/src/../include/worldGenerator.hpp \
  /home/chrma/Documents/programming/isoProject/libs/FastNoise2/include/FastNoise/FastNoise.h \
  /home/chrma/Documents/programming/isoProject/libs/FastNoise2/include/FastNoise/FastNoise_Config.h \
@@ -229,6 +230,8 @@ CMakeFiles/IsometricGame.dir/src/tileGrid.cpp.o: \
  /usr/include/bits/local_lim.h /usr/include/linux/limits.h \
  /usr/include/bits/posix2_lim.h /usr/include/bits/xopen_lim.h \
  /usr/include/bits/uio_lim.h \
+ /home/chrma/Documents/programming/isoProject/src/../include/textureAtlas.hpp \
+ /home/chrma/Documents/programming/isoProject/src/../include/worldGenerator.hpp \
  /home/chrma/Documents/programming/isoProject/src/../include/worldMap.hpp \
  /usr/include/c++/15.2.1/mutex /usr/include/c++/15.2.1/bits/chrono.h \
  /usr/include/c++/15.2.1/ratio /usr/include/c++/15.2.1/ctime \
@@ -236,7 +239,6 @@ CMakeFiles/IsometricGame.dir/src/tileGrid.cpp.o: \
  /usr/include/c++/15.2.1/bits/std_mutex.h \
  /usr/include/c++/15.2.1/bits/unique_lock.h \
  /usr/include/c++/15.2.1/x86_64-pc-linux-gnu/bits/error_constants.h \
- /home/chrma/Documents/programming/isoProject/src/../include/worldGenerator.hpp \
  /home/chrma/Documents/programming/isoProject/src/../include/biome.hpp \
  /usr/include/c++/15.2.1/cfloat \
  /usr/lib/gcc/x86_64-pc-linux-gnu/15.2.1/include/float.h \

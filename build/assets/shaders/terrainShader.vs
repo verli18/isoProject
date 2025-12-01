@@ -4,6 +4,7 @@
 in vec3 vertexPosition;
 in vec2 vertexTexCoord;
 in vec3 vertexNormal;
+in vec4 vertexColor;  // RGBA with erosion in alpha
 
 // Input uniform values
 uniform mat4 mvp;
@@ -14,11 +15,13 @@ uniform mat4 matNormal;
 out vec2 fragTexCoord;
 out vec3 fragNormal;
 out vec3 fragPosition;
+out vec4 fragColor;  // Pass erosion data to fragment shader
 
 void main()
 {
     // Send vertex attributes to fragment shader
     fragTexCoord = vertexTexCoord;
+    fragColor = vertexColor;  // Pass through erosion in alpha channel
     
     // Transform normal to world space
     fragNormal = normalize(vec3(matNormal * vec4(vertexNormal, 0.0)));

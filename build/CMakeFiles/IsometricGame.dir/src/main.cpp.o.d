@@ -170,11 +170,8 @@ CMakeFiles/IsometricGame.dir/src/main.cpp.o: \
  /usr/include/c++/15.2.1/optional \
  /home/chrma/Documents/programming/isoProject/src/../include/inventory.hpp \
  /home/chrma/Documents/programming/isoProject/src/../include/item.hpp \
- /home/chrma/Documents/programming/isoProject/src/../include/grass.hpp \
- /home/chrma/Documents/programming/isoProject/src/../include/machineManager.hpp \
- /usr/include/c++/15.2.1/map /usr/include/c++/15.2.1/bits/stl_tree.h \
- /usr/include/c++/15.2.1/bits/stl_map.h \
- /usr/include/c++/15.2.1/bits/stl_multimap.h \
+ /home/chrma/Documents/programming/isoProject/src/../include/visualSettings.hpp \
+ /home/chrma/Documents/programming/isoProject/src/../include/biome.hpp \
  /home/chrma/Documents/programming/isoProject/src/../include/worldGenerator.hpp \
  /home/chrma/Documents/programming/isoProject/libs/FastNoise2/include/FastNoise/FastNoise.h \
  /home/chrma/Documents/programming/isoProject/libs/FastNoise2/include/FastNoise/FastNoise_Config.h \
@@ -232,4 +229,8 @@ CMakeFiles/IsometricGame.dir/src/main.cpp.o: \
  /usr/include/bits/local_lim.h /usr/include/linux/limits.h \
  /usr/include/bits/posix2_lim.h /usr/include/bits/xopen_lim.h \
  /usr/include/bits/uio_lim.h \
- /home/chrma/Documents/programming/isoProject/src/../include/biome.hpp
+ /home/chrma/Documents/programming/isoProject/src/../include/grass.hpp \
+ /home/chrma/Documents/programming/isoProject/src/../include/machineManager.hpp \
+ /usr/include/c++/15.2.1/map /usr/include/c++/15.2.1/bits/stl_tree.h \
+ /usr/include/c++/15.2.1/bits/stl_map.h \
+ /usr/include/c++/15.2.1/bits/stl_multimap.h

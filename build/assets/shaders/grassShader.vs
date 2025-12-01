@@ -5,11 +5,14 @@ layout(location = 0) in vec3 vertexPosition;
 layout(location = 1) in vec2 vertexTexCoord;
 layout(location = 2) in vec3 vertexNormal;
 
-// Instance transform matrix (mat4 uses 4 consecutive locations)
+// Instance transform matrix (mat4 uses 4 consecutive locations: 3,4,5,6)
 layout(location = 3) in mat4 instanceTransform;
 
 // Per-instance blade color + diffuse (vec4: RGB + diffuse factor)
 layout(location = 7) in vec4 instanceColorDiffuse;
+
+// Per-instance temperature for biome blending
+layout(location = 8) in float instanceTemperature;
 
 // Uniforms
 uniform mat4 mvp;
@@ -27,6 +30,7 @@ out float fragHeightFactor;
 out vec3 fragBladeColor;
 out float fragDiffuse;
 out float fragWindBend;
+out float fragTemperature;
 
 void main()
 {
@@ -66,6 +70,7 @@ void main()
     fragTexCoord = vertexTexCoord;
     fragBladeColor = instanceColorDiffuse.rgb;
     fragDiffuse = instanceColorDiffuse.a;  // Pre-computed diffuse from CPU
+    fragTemperature = instanceTemperature;  // Pass temperature to fragment shader
     
     gl_Position = mvp * worldPos;
 }

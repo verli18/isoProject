@@ -619,6 +619,30 @@ src/tileGrid.cpp.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/IsometricGame.dir/build.make CMakeFiles/IsometricGame.dir/src/tileGrid.cpp.s
 .PHONY : src/tileGrid.cpp.s
 
+src/visualSettings.o: src/visualSettings.cpp.o
+.PHONY : src/visualSettings.o
+
+# target to build an object file
+src/visualSettings.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/IsometricGame.dir/build.make CMakeFiles/IsometricGame.dir/src/visualSettings.cpp.o
+.PHONY : src/visualSettings.cpp.o
+
+src/visualSettings.i: src/visualSettings.cpp.i
+.PHONY : src/visualSettings.i
+
+# target to preprocess a source file
+src/visualSettings.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/IsometricGame.dir/build.make CMakeFiles/IsometricGame.dir/src/visualSettings.cpp.i
+.PHONY : src/visualSettings.cpp.i
+
+src/visualSettings.s: src/visualSettings.cpp.s
+.PHONY : src/visualSettings.s
+
+# target to generate assembly for a file
+src/visualSettings.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/IsometricGame.dir/build.make CMakeFiles/IsometricGame.dir/src/visualSettings.cpp.s
+.PHONY : src/visualSettings.cpp.s
+
 src/worldGenerator.o: src/worldGenerator.cpp.o
 .PHONY : src/worldGenerator.o
 
@@ -735,6 +759,9 @@ help:
 	@echo "... src/tileGrid.o"
 	@echo "... src/tileGrid.i"
 	@echo "... src/tileGrid.s"
+	@echo "... src/visualSettings.o"
+	@echo "... src/visualSettings.i"
+	@echo "... src/visualSettings.s"
 	@echo "... src/worldGenerator.o"
 	@echo "... src/worldGenerator.i"
 	@echo "... src/worldGenerator.s"

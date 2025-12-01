@@ -1,6 +1,7 @@
 #include "../include/grass.hpp"
 #include "../include/resourceManager.hpp"
 #include "../include/textureAtlas.hpp"
+#include "../include/visualSettings.hpp"
 #include "rlgl.h"
 #include "raymath.h"
 #include <cmath>
@@ -19,6 +20,11 @@ static float hashFloat(uint32_t seed) {
     return static_cast<float>(hash(seed) & 0xFFFF) / 65535.0f;
 }
 
+// Linear interpolation helper
+static float lerpf(float a, float b, float t) {
+    return a + t * (b - a);
+}
+
 GrassField::GrassField() {
     bladeMesh = {0};
     grassMaterial = {0};
@@ -28,6 +34,7 @@ GrassField::GrassField() {
     vboNormals = 0;
     vboInstanceTransforms = 0;
     vboInstanceColors = 0;
+    vboInstanceTemp = 0;
 }
 
 GrassField::~GrassField() {
@@ -53,6 +60,10 @@ void GrassField::clear() {
     if (vboInstanceColors != 0) {
         rlUnloadVertexBuffer(vboInstanceColors);
         vboInstanceColors = 0;
+    }
+    if (vboInstanceTemp != 0) {
+        rlUnloadVertexBuffer(vboInstanceTemp);
+        vboInstanceTemp = 0;
     }
 }
 
@@ -159,11 +170,13 @@ float GrassField::getHeightAt(float localX, float localZ, int tileX, int tileZ,
 
 Color GrassField::computeGrassColor(uint8_t temperature, uint8_t moisture,
                                     uint8_t biological, uint8_t tileType) const {
-    // Base color from grass texture: #497a22 = RGB(73, 122, 34)
-    // Normalized: (0.286, 0.478, 0.133)
-    float r = 0.286f;
-    float g = 0.478f;  
-    float b = 0.133f;
+    // Get grass settings from VisualSettings
+    const GrassSettings& settings = VisualSettings::getInstance().getGrassSettings();
+    
+    // Start with the configurable base color (use tipColor as the main grass color)
+    float r = settings.tipColor.x;
+    float g = settings.tipColor.y;
+    float b = settings.tipColor.z;
     
     // Subtle variation based on biome parameters
     float tempNorm = temperature / 255.0f;
@@ -171,24 +184,29 @@ Color GrassField::computeGrassColor(uint8_t temperature, uint8_t moisture,
     float bioNorm = biological / 255.0f;
     
     // Temperature: warm = slight yellow shift, cool = slight blue shift
-    float tempShift = (tempNorm - 0.5f) * 0.08f;
+    float tempShift = (tempNorm - 0.5f) * settings.temperatureInfluence;
     r += tempShift * 0.4f;
     b -= tempShift * 0.2f;
     
     // Moisture: wetter = slightly more saturated
-    float satBoost = 0.95f + moistNorm * 0.1f;
+    float satBoost = 0.95f + moistNorm * settings.moistureInfluence;
     g *= satBoost;
     
     // Biological: healthier = slightly brighter
-    float brightness = 0.95f + bioNorm * 0.1f;
+    float brightness = 0.95f + bioNorm * settings.biologicalInfluence;
     r *= brightness;
     g *= brightness;
     b *= brightness;
     
-    // Keep colors close to base texture
-    r = std::clamp(r, 0.20f, 0.40f);
-    g = std::clamp(g, 0.40f, 0.60f);
-    b = std::clamp(b, 0.08f, 0.22f);
+    // Clamp to reasonable range around the base color
+    r = std::clamp(r, settings.tipColor.x - 0.15f, settings.tipColor.x + 0.15f);
+    g = std::clamp(g, settings.tipColor.y - 0.15f, settings.tipColor.y + 0.15f);
+    b = std::clamp(b, settings.tipColor.z - 0.15f, settings.tipColor.z + 0.15f);
+    
+    // Final clamp to valid range
+    r = std::clamp(r, 0.0f, 1.0f);
+    g = std::clamp(g, 0.0f, 1.0f);
+    b = std::clamp(b, 0.0f, 1.0f);
     
     return Color{
         static_cast<unsigned char>(r * 255),
@@ -202,79 +220,159 @@ void GrassField::generate(
     int chunkWorldX, int chunkWorldZ,
     int width, int height,
     const std::vector<float>& tileHeights,
-    const std::vector<uint8_t>& tileTypes,
+    const std::vector<BiomeType>& biomes,
     const std::vector<uint8_t>& temperatures,
     const std::vector<uint8_t>& moistures,
-    const std::vector<uint8_t>& biologicalPotentials
+    const std::vector<uint8_t>& biologicalPotentials,
+    const std::vector<uint8_t>& erosionFactors
 ) {
     clear();
     generateBladeMesh();
     
+    // Get settings
+    const GrassSettings& settings = VisualSettings::getInstance().getGrassSettings();
+    const BiomeManager& biomeMan = BiomeManager::getInstance();
+    
     // Estimate max blades and reserve
-    int maxBlades = width * height * BLADES_PER_TILE;
+    int bladesPerTile = static_cast<int>(settings.bladesPerTile);
+    int maxBlades = width * height * bladesPerTile;
     transforms.reserve(maxBlades);
     bladeData.reserve(maxBlades);
     
     auto idx = [width](int x, int z) { return z * width + x; };
-    auto heightIdx = [width](int x, int z) { return z * (width + 1) + x; };
+    
+    // Helper: check if tile at (x,z) is dirt-like (sand, stone, etc.)
+    // We use the biome's primary texture to determine this
+    auto isDirtLike = [&](int x, int z) -> bool {
+        if (x < 0 || x >= width || z < 0 || z >= height) return false;
+        BiomeType b = biomes[idx(x, z)];
+        uint8_t tex = biomeMan.getTopTexture(b);
+        return tex == SAND || tex == STONE || tex == SNOW;
+    };
+    
+    // Helper: calculate minimum distance to nearest dirt-like tile edge
+    auto distToDirt = [&](int tx, int tz, float localX, float localZ) -> float {
+        float minDist = 999.0f;
+        
+        // Check all 8 neighbors + center tile edges
+        for (int dz = -1; dz <= 1; ++dz) {
+            for (int dx = -1; dx <= 1; ++dx) {
+                if (isDirtLike(tx + dx, tz + dz)) {
+                    // Calculate distance from position to this neighbor
+                    float nx = tx + dx + 0.5f;
+                    float nz = tz + dz + 0.5f;
+                    float dist = sqrtf((localX - nx) * (localX - nx) + (localZ - nz) * (localZ - nz));
+                    // Subtract 0.5 to get distance from edge rather than center
+                    dist = std::max(0.0f, dist - 0.7f);
+                    minDist = std::min(minDist, dist);
+                }
+            }
+        }
+        return minDist;
+    };
     
     for (int tz = 0; tz < height; ++tz) {
         for (int tx = 0; tx < width; ++tx) {
             int tileIdx = idx(tx, tz);
-            uint8_t tileType = tileTypes[tileIdx];
+            BiomeType biomeType = biomes[tileIdx];
+            const BiomeData& biomeData = biomeMan.getBiomeData(biomeType);
             
-            // Skip non-grass tiles (sand, snow, water, etc.)
-            if (tileType != GRASS) continue;
+            // Skip if biome doesn't have grass
+            if (!biomeData.grass.enabled) continue;
             
             uint8_t temp = temperatures[tileIdx];
             uint8_t moist = moistures[tileIdx];
             uint8_t bio = biologicalPotentials[tileIdx];
+            uint8_t erosionRaw = erosionFactors[tileIdx];
             
-            // === Estimate erosion from height gradient (steeper = more water flow = more erosion) ===
-            // Get the 4 corner heights
-            float h00 = tileHeights[heightIdx(tx, tz)];
-            float h10 = tileHeights[heightIdx(tx + 1, tz)];
-            float h01 = tileHeights[heightIdx(tx, tz + 1)];
-            float h11 = tileHeights[heightIdx(tx + 1, tz + 1)];
+            // Normalized values
+            float tempNorm = temp / 255.0f;
+            float moistNorm = moist / 255.0f;
+            float bioNorm = bio / 255.0f;
             
-            // Calculate max height difference (slope indicator)
-            float maxDiff = std::max({
-                std::abs(h00 - h10), std::abs(h00 - h01), std::abs(h00 - h11),
-                std::abs(h10 - h01), std::abs(h10 - h11), std::abs(h01 - h11)
-            });
+            // === Use actual erosion data from erosion simulation ===
+            float erosionFactor = erosionRaw / 255.0f;
             
-            // Erosion factor: steeper slopes = more water flow = more erosion = LESS grass
-            // Normalize: 0 = flat (best for grass), 1 = very steep (bad for grass)
-            float erosionFactor = std::clamp(maxDiff / 1.5f, 0.0f, 1.0f);
-            // Flat areas get 100% grass, steep areas get only 10%
-            float grassMultiplier = 1.0f - erosionFactor * 0.9f;
+            // Get terrain settings for erosion thresholds
+            const TerrainSettings& terrainSettings = VisualSettings::getInstance().getTerrainSettings();
             
-            // === Calculate grass density ===
-            // For carpet-like effect, start with high base density
-            float density = 0.7f;  // High base density
+            // Apply same thresholds as shader
+            float blendRange = std::max(0.01f, terrainSettings.erosionFullExpose - terrainSettings.erosionThreshold);
+            float erosionBlend = std::clamp((erosionFactor - terrainSettings.erosionThreshold) / blendRange, 0.0f, 1.0f);
             
-            if (bio > 0) {
-                // Boost with biological potential
-                float bioNorm = bio / 255.0f;
-                density = 0.6f + 0.4f * bioNorm;
-            } else {
-                // Fallback: mainly moisture-driven
-                float moistNorm = moist / 255.0f;
-                density = 0.5f + 0.5f * moistNorm;
+            // Grass density multiplier from erosion
+            float erosionMult = 1.0f - erosionBlend * settings.slopeReduction;
+            
+            // === Calculate density based on BiomeData ===
+            float density = biomeData.grass.densityBase;
+            
+            // Apply patchiness
+            if (biomeData.grass.patchiness > 0.0f) {
+                // Use simplex noise for patches
+                // We don't have simplex noise handy here, so let's use a simple noise function
+                // or just reuse the hash function for a grid-based noise
+                float scale = std::max(1.0f, biomeData.grass.patchScale);
+                float nx = (chunkWorldX + tx) / scale;
+                float nz = (chunkWorldZ + tz) / scale;
+                
+                // Simple value noise
+                int ix = (int)floor(nx);
+                int iz = (int)floor(nz);
+                float fx = nx - ix;
+                float fz = nz - iz;
+                
+                auto noise = [](int x, int z) {
+                    return hashFloat(hash(x + z * 57));
+                };
+                
+                float n00 = noise(ix, iz);
+                float n10 = noise(ix + 1, iz);
+                float n01 = noise(ix, iz + 1);
+                float n11 = noise(ix + 1, iz + 1);
+                
+                float n = lerpf(lerpf(n00, n10, fx), lerpf(n01, n11, fx), fz);
+                
+                // Threshold for patches
+                // High patchiness means we only keep grass where noise is high
+                float threshold = biomeData.grass.patchiness * 0.8f; // 0.8 max threshold
+                if (n < threshold) {
+                    density *= 0.1f; // Very sparse in gaps
+                } else {
+                    // Smooth transition at edges of patches
+                    float edge = (n - threshold) / 0.2f;
+                    density *= std::min(1.0f, edge * 2.0f + 0.1f);
+                }
             }
             
-            // Low erosion (flat terrain) = more grass (carpet effect)
-            density *= grassMultiplier;
+            // Biological potential boost
+            density += bioNorm * biomeData.grass.densityVariation;
+            
+            // Moisture boost for dry biomes (if density is low)
+            if (biomeData.grass.densityBase < 0.3f) {
+                density += moistNorm * biomeData.grass.densityVariation;
+            }
+            
+            density *= erosionMult;
             density = std::clamp(density, 0.0f, 1.0f);
             
             // Skip if too sparse
-            if (density < 0.1f) continue;
+            if (density < settings.minDensity) continue;
             
-            int bladesToPlace = static_cast<int>(BLADES_PER_TILE * density);
+            // === Calculate height multiplier based on biome ===
+            float biomeHeightMult = biomeData.grass.heightMultiplier;
+            
+            int bladesToPlace = static_cast<int>(settings.bladesPerTile * density);
             if (bladesToPlace < 1) bladesToPlace = 1;
             
-            // Compute grass color
-            Color grassColor = computeGrassColor(temp, moist, bio > 0 ? bio : moist, tileType);
+            // Compute base grass color from biome data
+            // We use the biome's configured colors instead of the global settings
+            // but we still apply some variation based on temp/moist
+            Vector3 tipColor = biomeData.grass.tipColor;
+            Vector3 baseColor = biomeData.grass.baseColor;
+            
+            // Apply subtle variation
+            tipColor.x += (tempNorm - 0.5f) * 0.1f; // Temp affects red
+            tipColor.y += (moistNorm - 0.5f) * 0.1f; // Moist affects green
             
             // Place blades within this tile
             for (int b = 0; b < bladesToPlace; ++b) {
@@ -286,18 +384,40 @@ void GrassField::generate(
                 float worldX = chunkWorldX + localX;
                 float worldZ = chunkWorldZ + localZ;
                 
+                // Calculate dirt blending for this blade position
+                float dirtDist = distToDirt(tx, tz, localX, localZ);
+                float dirtBlend = 0.0f;
+                if (dirtDist < settings.dirtBlendDistance) {
+                    // Smoothstep falloff for natural transition
+                    float t = dirtDist / settings.dirtBlendDistance;
+                    t = t * t * (3.0f - 2.0f * t);  // Smoothstep
+                    dirtBlend = (1.0f - t) * settings.dirtBlendStrength;
+                }
+                
+                // Color for this blade
+                float r = tipColor.x;
+                float g = tipColor.y;
+                float blueVal = tipColor.z;
+                
+                if (dirtBlend > 0.0f) {
+                    r = r * (1.0f - dirtBlend) + settings.dirtBlendColor.x * dirtBlend;
+                    g = g * (1.0f - dirtBlend) + settings.dirtBlendColor.y * dirtBlend;
+                    blueVal = blueVal * (1.0f - dirtBlend) + settings.dirtBlendColor.z * dirtBlend;
+                }
+                
                 // Get height at this position
                 float y = getHeightAt(localX, localZ, tx, tz, width, tileHeights);
                 
                 // Random rotation around Y axis
                 float rotation = hashFloat(seed + 2) * 2.0f * PI;
                 
-                // Height variation - more uniform for carpet look
-                float baseHeightVar = 0.8f + hashFloat(seed + 3) * 0.4f;  // 0.8 to 1.2
-                float heightScale = baseHeightVar * grassMultiplier;
+                // Height variation from settings, apply biome multiplier
+                float heightVar = settings.heightVariation;
+                float baseHeightVar = (1.0f - heightVar/2.0f) + hashFloat(seed + 3) * heightVar;
+                float heightScale = baseHeightVar * biomeHeightMult * erosionMult * (settings.baseHeight / BLADE_BASE_HEIGHT);
                 
-                // Base angle (slight lean) - more lean on slopes
-                float leanAmount = 0.1f + erosionFactor * 0.25f;  // More lean on steep slopes
+                // Base angle (slight lean)
+                float leanAmount = 0.1f + erosionFactor * 0.25f;
                 float baseAngle = (hashFloat(seed + 4) - 0.5f) * leanAmount * 2.0f;
                 
                 // Stiffness variation
@@ -316,11 +436,7 @@ void GrassField::generate(
                     (hD - hU) / (2.0f * eps)
                 });
                 
-                // Compute diffuse lighting on CPU (matches terrain shader)
-                // Sun direction stored as {0.59f, -1.0f, -0.8f} (from sun to ground, pointing DOWN)
-                // Terrain normals are computed via cross product and point DOWN due to winding order
-                // Our terrainNormal points UP (Y=1.0), so we negate the sun direction to get
-                // the light direction (from ground to sun) for correct diffuse calculation
+                // Compute diffuse lighting on CPU
                 Vector3 lightDir = Vector3Normalize({-0.59f, 1.0f, 0.8f});  // Negated = toward sun
                 float diffuse = std::max(0.0f, Vector3DotProduct(terrainNormal, lightDir));
                 
@@ -331,12 +447,13 @@ void GrassField::generate(
                 
                 transforms.push_back(transform);
                 
-                // Store blade data with pre-computed diffuse
+                // Store blade data with pre-computed diffuse (using blended colors)
                 GrassBlade blade;
-                blade.r = grassColor.r / 255.0f;
-                blade.g = grassColor.g / 255.0f;
-                blade.b = grassColor.b / 255.0f;
+                blade.r = r;
+                blade.g = g;
+                blade.b = blueVal;
                 blade.diffuse = diffuse;
+                blade.temperature = temp / 255.0f;  // Normalized temperature for shader
                 blade.heightScale = heightScale;
                 blade.baseAngle = baseAngle;
                 blade.stiffness = stiffness;
@@ -409,12 +526,32 @@ void GrassField::uploadInstanceData() {
     rlSetVertexAttribute(7, 4, RL_FLOAT, false, 0, 0);  // vec4, no stride, no offset
     rlSetVertexAttributeDivisor(7, 1);  // 1 = advance once per instance
     
+    // Build per-instance temperature data (float per blade)
+    std::vector<float> tempData(bladeCount);
+    for (size_t i = 0; i < bladeCount; ++i) {
+        tempData[i] = bladeData[i].temperature;
+    }
+    
+    // Clean up old temp buffer if exists
+    if (vboInstanceTemp != 0) {
+        rlUnloadVertexBuffer(vboInstanceTemp);
+    }
+    
+    // Create instance temperature VBO at location 8 (float)
+    vboInstanceTemp = rlLoadVertexBuffer(tempData.data(),
+                                          tempData.size() * sizeof(float),
+                                          false);
+    rlEnableVertexBuffer(vboInstanceTemp);
+    rlEnableVertexAttribute(8);
+    rlSetVertexAttribute(8, 1, RL_FLOAT, false, 0, 0);  // single float, no stride, no offset
+    rlSetVertexAttributeDivisor(8, 1);  // 1 = advance once per instance
+    
     rlDisableVertexBuffer();
     rlDisableVertexArray();
     
     resourcesLoaded = true;
-    TraceLog(LOG_INFO, "GRASS: Instance data uploaded - %zu instances, transform VBO: %u, color VBO: %u", 
-             bladeCount, vboInstanceTransforms, vboInstanceColors);
+    TraceLog(LOG_INFO, "GRASS: Instance data uploaded - %zu instances, transform VBO: %u, color VBO: %u, temp VBO: %u", 
+             bladeCount, vboInstanceTransforms, vboInstanceColors, vboInstanceTemp);
 }
 
 void GrassField::render(float time) {

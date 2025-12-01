@@ -165,4 +165,6 @@ CMakeFiles/IsometricGame.dir/src/resourceManager.cpp.o: \
  /usr/include/c++/15.2.1/bits/stl_bvector.h \
  /usr/include/c++/15.2.1/bits/vector.tcc /usr/include/c++/15.2.1/optional \
  /home/chrma/Documents/programming/isoProject/src/../include/inventory.hpp \
- /home/chrma/Documents/programming/isoProject/src/../include/item.hpp
+ /home/chrma/Documents/programming/isoProject/src/../include/item.hpp \
+ /home/chrma/Documents/programming/isoProject/src/../include/visualSettings.hpp \
+ /home/chrma/Documents/programming/isoProject/src/../include/visualSettings.hpp

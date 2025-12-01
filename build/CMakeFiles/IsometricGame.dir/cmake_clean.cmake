@@ -36,6 +36,8 @@ file(REMOVE_RECURSE
   "CMakeFiles/IsometricGame.dir/src/resourceManager.cpp.o.d"
   "CMakeFiles/IsometricGame.dir/src/tileGrid.cpp.o"
   "CMakeFiles/IsometricGame.dir/src/tileGrid.cpp.o.d"
+  "CMakeFiles/IsometricGame.dir/src/visualSettings.cpp.o"
+  "CMakeFiles/IsometricGame.dir/src/visualSettings.cpp.o.d"
   "CMakeFiles/IsometricGame.dir/src/worldGenerator.cpp.o"
   "CMakeFiles/IsometricGame.dir/src/worldGenerator.cpp.o.d"
   "CMakeFiles/IsometricGame.dir/src/worldMap.cpp.o"

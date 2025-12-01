@@ -4,6 +4,7 @@
 #include <raylib.h>
 #include <vector>
 #include <cstdint>
+#include "biome.hpp"
 
 /**
  * GrassBlade - Per-instance data for a single grass blade
@@ -21,6 +22,9 @@ struct GrassBlade {
     
     // Color tint (normalized 0-1) + diffuse lighting factor in alpha
     float r, g, b, diffuse;
+    
+    // Temperature (0-1) for biome color blending in shader
+    float temperature;
     
     // Height multiplier (0.5 - 1.5 typical range)
     float heightScale;
@@ -50,14 +54,16 @@ public:
     // width/height: chunk dimensions in tiles
     // tileHeights: height data for tile corners (width+1 x height+1)
     // tileData: per-tile biome info (temperature, moisture, type, potentials)
+    // erosionFactors: per-tile erosion intensity (0=none, 255=max erosion)
     void generate(
         int chunkWorldX, int chunkWorldZ,
         int width, int height,
         const std::vector<float>& tileHeights,
-        const std::vector<uint8_t>& tileTypes,
+        const std::vector<BiomeType>& biomes,
         const std::vector<uint8_t>& temperatures,
         const std::vector<uint8_t>& moistures,
-        const std::vector<uint8_t>& biologicalPotentials
+        const std::vector<uint8_t>& biologicalPotentials,
+        const std::vector<uint8_t>& erosionFactors
     );
     
     // Clear all grass data
@@ -94,6 +100,7 @@ private:
     unsigned int vboNormals = 0;               // Normals VBO
     unsigned int vboInstanceTransforms = 0;    // Per-instance transforms VBO
     unsigned int vboInstanceColors = 0;        // Per-instance color+diffuse VBO (vec4)
+    unsigned int vboInstanceTemp = 0;          // Per-instance temperature VBO (float)
     int vertexCount = 0;                       // Number of vertices in blade mesh
     
     // Generate the base blade mesh (a simple quad or triangle strip)

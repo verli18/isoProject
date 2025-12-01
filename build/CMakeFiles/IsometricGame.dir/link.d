@@ -16,6 +16,7 @@ IsometricGame: \
   CMakeFiles/IsometricGame.dir/src/worldMap.cpp.o \
   CMakeFiles/IsometricGame.dir/src/biome.cpp.o \
   CMakeFiles/IsometricGame.dir/src/grass.cpp.o \
+  CMakeFiles/IsometricGame.dir/src/visualSettings.cpp.o \
   CMakeFiles/IsometricGame.dir/libs/rlImGui/rlImGui.cpp.o \
   CMakeFiles/IsometricGame.dir/libs/rlImGui/imgui/imgui.cpp.o \
   CMakeFiles/IsometricGame.dir/libs/rlImGui/imgui/imgui_widgets.cpp.o \
@@ -86,6 +87,8 @@ CMakeFiles/IsometricGame.dir/src/worldMap.cpp.o:
 CMakeFiles/IsometricGame.dir/src/biome.cpp.o:
 
 CMakeFiles/IsometricGame.dir/src/grass.cpp.o:
+
+CMakeFiles/IsometricGame.dir/src/visualSettings.cpp.o:
 
 CMakeFiles/IsometricGame.dir/libs/rlImGui/rlImGui.cpp.o:
 

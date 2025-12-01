@@ -1,4 +1,5 @@
 #include "../include/resourceManager.hpp"
+#include "../include/visualSettings.hpp"
 #include <raylib.h>
 
 // Define SHADER_LOC_VERTEX_INSTANCE_TX for raylib 5.5 compatibility
@@ -44,6 +45,17 @@ void resourceManager::cacheShaderLocations() {
     terrainLocs.ambientColor = GetShaderLocation(terrainShader, "ambientColor");
     terrainLocs.shiftIntensity = GetShaderLocation(terrainShader, "shiftIntensity");
     terrainLocs.shiftDisplacement = GetShaderLocation(terrainShader, "shiftDisplacement");
+    // Erosion dithering uniform locations
+    terrainLocs.erosionThreshold = GetShaderLocation(terrainShader, "erosionThreshold");
+    terrainLocs.erosionFullExpose = GetShaderLocation(terrainShader, "erosionFullExpose");
+    terrainLocs.ditherIntensity = GetShaderLocation(terrainShader, "ditherIntensity");
+    // Per-biome exposed texture U offsets
+    terrainLocs.grassExposedU = GetShaderLocation(terrainShader, "grassExposedU");
+    terrainLocs.snowExposedU = GetShaderLocation(terrainShader, "snowExposedU");
+    terrainLocs.sandExposedU = GetShaderLocation(terrainShader, "sandExposedU");
+    terrainLocs.stoneExposedU = GetShaderLocation(terrainShader, "stoneExposedU");
+    // Visualization mode
+    terrainLocs.visualizationMode = GetShaderLocation(terrainShader, "visualizationMode");
     
     // Cache water shader uniform locations
     waterLocs.waterHue = GetShaderLocation(waterShader, "waterHue");
@@ -76,6 +88,32 @@ void resourceManager::cacheShaderLocations() {
     grassLocs.ambientColor = GetShaderLocation(grassShader, "ambientColor");
     grassLocs.shiftIntensity = GetShaderLocation(grassShader, "shiftIntensity");
     grassLocs.shiftDisplacement = GetShaderLocation(grassShader, "shiftDisplacement");
+    
+    // Cache grass color uniforms - warm biome
+    grassLocs.grassTipColor = GetShaderLocation(grassShader, "grassTipColor");
+    grassLocs.grassBaseColor = GetShaderLocation(grassShader, "grassBaseColor");
+    
+    // Cache tundra color uniforms
+    grassLocs.tundraTipColor = GetShaderLocation(grassShader, "tundraTipColor");
+    grassLocs.tundraBaseColor = GetShaderLocation(grassShader, "tundraBaseColor");
+    
+    // Cache snow color uniforms
+    grassLocs.snowTipColor = GetShaderLocation(grassShader, "snowTipColor");
+    grassLocs.snowBaseColor = GetShaderLocation(grassShader, "snowBaseColor");
+    
+    // Cache desert color uniforms
+    grassLocs.desertTipColor = GetShaderLocation(grassShader, "desertTipColor");
+    grassLocs.desertBaseColor = GetShaderLocation(grassShader, "desertBaseColor");
+    
+    // Cache temperature threshold uniforms - cold
+    grassLocs.tundraStartTemp = GetShaderLocation(grassShader, "tundraStartTemp");
+    grassLocs.tundraFullTemp = GetShaderLocation(grassShader, "tundraFullTemp");
+    grassLocs.snowStartTemp = GetShaderLocation(grassShader, "snowStartTemp");
+    grassLocs.snowFullTemp = GetShaderLocation(grassShader, "snowFullTemp");
+    
+    // Cache temperature threshold uniforms - hot
+    grassLocs.desertStartTemp = GetShaderLocation(grassShader, "desertStartTemp");
+    grassLocs.desertFullTemp = GetShaderLocation(grassShader, "desertFullTemp");
 }
 
 void resourceManager::initialize() {
@@ -98,31 +136,52 @@ void resourceManager::initialize() {
     grassMaterial.shader = grassShader;
     grassMaterial.maps[MATERIAL_MAP_DIFFUSE].color = (Color){80, 160, 60, 255};  // Base green
     
-    // Set default grass shader values
-    float defaultWindStrength = 0.15f;
-    float defaultWindSpeed = 2.0f;
-    float windDir[2] = {0.7f, 0.7f};  // Diagonal wind
-    SetShaderValue(grassShader, grassLocs.windStrength, &defaultWindStrength, SHADER_UNIFORM_FLOAT);
-    SetShaderValue(grassShader, grassLocs.windSpeed, &defaultWindSpeed, SHADER_UNIFORM_FLOAT);
+    // Get settings from VisualSettings
+    GrassSettings& grassSettings = VisualSettings::getInstance().getGrassSettings();
+    WaterSettings& waterSettings = VisualSettings::getInstance().getWaterSettings();
+    
+    // Set grass shader wind values from settings
+    float windDir[2] = {grassSettings.windDirection.x, grassSettings.windDirection.y};
+    SetShaderValue(grassShader, grassLocs.windStrength, &grassSettings.windStrength, SHADER_UNIFORM_FLOAT);
+    SetShaderValue(grassShader, grassLocs.windSpeed, &grassSettings.windSpeed, SHADER_UNIFORM_FLOAT);
     SetShaderValue(grassShader, grassLocs.windDirection, windDir, SHADER_UNIFORM_VEC2);
     
-    // Set default HSV shift for water shader
-    float defaultShift = -0.1f;
-    float defaultSat = 4.0f;
-    float defaultVal = 0.5f;
-    SetShaderValue(waterShader, waterLocs.waterHue, &defaultShift, SHADER_UNIFORM_FLOAT);
-    SetShaderValue(waterShader, waterLocs.waterSaturation, &defaultSat, SHADER_UNIFORM_FLOAT);
-    SetShaderValue(waterShader, waterLocs.waterValue, &defaultVal, SHADER_UNIFORM_FLOAT);
+    // Set grass color uniforms - warm biome
+    SetShaderValue(grassShader, grassLocs.grassTipColor, &grassSettings.tipColor, SHADER_UNIFORM_VEC3);
+    SetShaderValue(grassShader, grassLocs.grassBaseColor, &grassSettings.baseColor, SHADER_UNIFORM_VEC3);
     
-    // Set default depth-based alpha parameters
-    float minDepth = 0.0f;      // Start alpha calculation at 0 depth
-    float maxDepth = 4.0f;      // Full alpha at 2 units deep
-    float minAlpha = 0.4f;      // 20% alpha for very shallow water
-    float maxAlpha = 1.0f;      // 80% alpha for deep water
-    SetShaderValue(waterShader, waterLocs.minDepth, &minDepth, SHADER_UNIFORM_FLOAT);
-    SetShaderValue(waterShader, waterLocs.maxDepth, &maxDepth, SHADER_UNIFORM_FLOAT);
-    SetShaderValue(waterShader, waterLocs.minAlpha, &minAlpha, SHADER_UNIFORM_FLOAT);
-    SetShaderValue(waterShader, waterLocs.maxAlpha, &maxAlpha, SHADER_UNIFORM_FLOAT);
+    // Set tundra color uniforms
+    SetShaderValue(grassShader, grassLocs.tundraTipColor, &grassSettings.tundraTipColor, SHADER_UNIFORM_VEC3);
+    SetShaderValue(grassShader, grassLocs.tundraBaseColor, &grassSettings.tundraBaseColor, SHADER_UNIFORM_VEC3);
+    
+    // Set snow color uniforms
+    SetShaderValue(grassShader, grassLocs.snowTipColor, &grassSettings.snowTipColor, SHADER_UNIFORM_VEC3);
+    SetShaderValue(grassShader, grassLocs.snowBaseColor, &grassSettings.snowBaseColor, SHADER_UNIFORM_VEC3);
+    
+    // Set desert color uniforms
+    SetShaderValue(grassShader, grassLocs.desertTipColor, &grassSettings.desertTipColor, SHADER_UNIFORM_VEC3);
+    SetShaderValue(grassShader, grassLocs.desertBaseColor, &grassSettings.desertBaseColor, SHADER_UNIFORM_VEC3);
+    
+    // Set temperature thresholds - cold
+    SetShaderValue(grassShader, grassLocs.tundraStartTemp, &grassSettings.tundraStartTemp, SHADER_UNIFORM_FLOAT);
+    SetShaderValue(grassShader, grassLocs.tundraFullTemp, &grassSettings.tundraFullTemp, SHADER_UNIFORM_FLOAT);
+    SetShaderValue(grassShader, grassLocs.snowStartTemp, &grassSettings.snowStartTemp, SHADER_UNIFORM_FLOAT);
+    SetShaderValue(grassShader, grassLocs.snowFullTemp, &grassSettings.snowFullTemp, SHADER_UNIFORM_FLOAT);
+    
+    // Set temperature thresholds - hot
+    SetShaderValue(grassShader, grassLocs.desertStartTemp, &grassSettings.desertStartTemp, SHADER_UNIFORM_FLOAT);
+    SetShaderValue(grassShader, grassLocs.desertFullTemp, &grassSettings.desertFullTemp, SHADER_UNIFORM_FLOAT);
+    
+    // Set water shader HSV parameters from settings
+    SetShaderValue(waterShader, waterLocs.waterHue, &waterSettings.hueShift, SHADER_UNIFORM_FLOAT);
+    SetShaderValue(waterShader, waterLocs.waterSaturation, &waterSettings.saturationMult, SHADER_UNIFORM_FLOAT);
+    SetShaderValue(waterShader, waterLocs.waterValue, &waterSettings.valueMult, SHADER_UNIFORM_FLOAT);
+    
+    // Set water depth-based alpha parameters from settings
+    SetShaderValue(waterShader, waterLocs.minDepth, &waterSettings.minDepth, SHADER_UNIFORM_FLOAT);
+    SetShaderValue(waterShader, waterLocs.maxDepth, &waterSettings.maxDepth, SHADER_UNIFORM_FLOAT);
+    SetShaderValue(waterShader, waterLocs.minAlpha, &waterSettings.minAlpha, SHADER_UNIFORM_FLOAT);
+    SetShaderValue(waterShader, waterLocs.maxAlpha, &waterSettings.maxAlpha, SHADER_UNIFORM_FLOAT);
 
     // Load item texture atlas
     itemTexture = LoadTexture("assets/textures/items.png");
@@ -280,4 +339,88 @@ Material& resourceManager::getGrassMaterial() {
 
 GrassShaderLocs& resourceManager::getGrassShaderLocs() {
     return grassLocs;
+}
+
+void resourceManager::applyVisualSettings() {
+    VisualSettings& vs = VisualSettings::getInstance();
+    
+    // Apply lighting settings to terrain shader
+    LightingSettings& light = vs.getLightingSettings();
+    SetShaderValue(terrainShader, terrainLocs.sunDirection, &light.sunDirection, SHADER_UNIFORM_VEC3);
+    SetShaderValue(terrainShader, terrainLocs.sunColor, &light.sunColor, SHADER_UNIFORM_VEC3);
+    SetShaderValue(terrainShader, terrainLocs.ambientStrength, &light.ambientStrength, SHADER_UNIFORM_FLOAT);
+    SetShaderValue(terrainShader, terrainLocs.ambientColor, &light.ambientColor, SHADER_UNIFORM_VEC3);
+    SetShaderValue(terrainShader, terrainLocs.shiftIntensity, &light.shiftIntensity, SHADER_UNIFORM_FLOAT);
+    SetShaderValue(terrainShader, terrainLocs.shiftDisplacement, &light.shiftDisplacement, SHADER_UNIFORM_FLOAT);
+    
+    // Apply terrain erosion/dithering settings
+    TerrainSettings& terrain = vs.getTerrainSettings();
+    SetShaderValue(terrainShader, terrainLocs.erosionThreshold, &terrain.erosionThreshold, SHADER_UNIFORM_FLOAT);
+    SetShaderValue(terrainShader, terrainLocs.erosionFullExpose, &terrain.erosionFullExpose, SHADER_UNIFORM_FLOAT);
+    SetShaderValue(terrainShader, terrainLocs.ditherIntensity, &terrain.ditherIntensity, SHADER_UNIFORM_FLOAT);
+    // Per-biome exposed textures (U offset in atlas, normalized 0-1)
+    float grassExpU = terrain.grassExposedU / 80.0f;
+    float snowExpU = terrain.snowExposedU / 80.0f;
+    float sandExpU = terrain.sandExposedU / 80.0f;
+    float stoneExpU = terrain.stoneExposedU / 80.0f;
+    SetShaderValue(terrainShader, terrainLocs.grassExposedU, &grassExpU, SHADER_UNIFORM_FLOAT);
+    SetShaderValue(terrainShader, terrainLocs.snowExposedU, &snowExpU, SHADER_UNIFORM_FLOAT);
+    SetShaderValue(terrainShader, terrainLocs.sandExposedU, &sandExpU, SHADER_UNIFORM_FLOAT);
+    SetShaderValue(terrainShader, terrainLocs.stoneExposedU, &stoneExpU, SHADER_UNIFORM_FLOAT);
+    TraceLog(LOG_INFO, "Terrain exposedU offsets: grass=%.3f snow=%.3f sand=%.3f stone=%.3f", grassExpU, snowExpU, sandExpU, stoneExpU);
+    // Visualization mode
+    SetShaderValue(terrainShader, terrainLocs.visualizationMode, &terrain.visualizationMode, SHADER_UNIFORM_INT);
+    
+    // Apply lighting to grass shader
+    SetShaderValue(grassShader, grassLocs.sunDirection, &light.sunDirection, SHADER_UNIFORM_VEC3);
+    SetShaderValue(grassShader, grassLocs.sunColor, &light.sunColor, SHADER_UNIFORM_VEC3);
+    SetShaderValue(grassShader, grassLocs.ambientStrength, &light.ambientStrength, SHADER_UNIFORM_FLOAT);
+    SetShaderValue(grassShader, grassLocs.ambientColor, &light.ambientColor, SHADER_UNIFORM_VEC3);
+    SetShaderValue(grassShader, grassLocs.shiftIntensity, &light.shiftIntensity, SHADER_UNIFORM_FLOAT);
+    SetShaderValue(grassShader, grassLocs.shiftDisplacement, &light.shiftDisplacement, SHADER_UNIFORM_FLOAT);
+    
+    // Apply grass settings - warm biome colors
+    GrassSettings& grass = vs.getGrassSettings();
+    SetShaderValue(grassShader, grassLocs.grassTipColor, &grass.tipColor, SHADER_UNIFORM_VEC3);
+    SetShaderValue(grassShader, grassLocs.grassBaseColor, &grass.baseColor, SHADER_UNIFORM_VEC3);
+    
+    // Tundra colors
+    SetShaderValue(grassShader, grassLocs.tundraTipColor, &grass.tundraTipColor, SHADER_UNIFORM_VEC3);
+    SetShaderValue(grassShader, grassLocs.tundraBaseColor, &grass.tundraBaseColor, SHADER_UNIFORM_VEC3);
+    
+    // Snow colors
+    SetShaderValue(grassShader, grassLocs.snowTipColor, &grass.snowTipColor, SHADER_UNIFORM_VEC3);
+    SetShaderValue(grassShader, grassLocs.snowBaseColor, &grass.snowBaseColor, SHADER_UNIFORM_VEC3);
+    
+    // Temperature thresholds
+    SetShaderValue(grassShader, grassLocs.tundraStartTemp, &grass.tundraStartTemp, SHADER_UNIFORM_FLOAT);
+    SetShaderValue(grassShader, grassLocs.tundraFullTemp, &grass.tundraFullTemp, SHADER_UNIFORM_FLOAT);
+    SetShaderValue(grassShader, grassLocs.snowStartTemp, &grass.snowStartTemp, SHADER_UNIFORM_FLOAT);
+    SetShaderValue(grassShader, grassLocs.snowFullTemp, &grass.snowFullTemp, SHADER_UNIFORM_FLOAT);
+    
+    // Wind settings
+    float windDir[2] = {grass.windDirection.x, grass.windDirection.y};
+    SetShaderValue(grassShader, grassLocs.windStrength, &grass.windStrength, SHADER_UNIFORM_FLOAT);
+    SetShaderValue(grassShader, grassLocs.windSpeed, &grass.windSpeed, SHADER_UNIFORM_FLOAT);
+    SetShaderValue(grassShader, grassLocs.windDirection, windDir, SHADER_UNIFORM_VEC2);
+    
+    // Apply water settings
+    WaterSettings& water = vs.getWaterSettings();
+    SetShaderValue(waterShader, waterLocs.waterHue, &water.hueShift, SHADER_UNIFORM_FLOAT);
+    SetShaderValue(waterShader, waterLocs.waterSaturation, &water.saturationMult, SHADER_UNIFORM_FLOAT);
+    SetShaderValue(waterShader, waterLocs.waterValue, &water.valueMult, SHADER_UNIFORM_FLOAT);
+    SetShaderValue(waterShader, waterLocs.minDepth, &water.minDepth, SHADER_UNIFORM_FLOAT);
+    SetShaderValue(waterShader, waterLocs.maxDepth, &water.maxDepth, SHADER_UNIFORM_FLOAT);
+    SetShaderValue(waterShader, waterLocs.minAlpha, &water.minAlpha, SHADER_UNIFORM_FLOAT);
+    SetShaderValue(waterShader, waterLocs.maxAlpha, &water.maxAlpha, SHADER_UNIFORM_FLOAT);
+    
+    vs.clearDirty();
+}
+
+void resourceManager::updateGrassWindSettings() {
+    GrassSettings& grass = VisualSettings::getInstance().getGrassSettings();
+    float windDir[2] = {grass.windDirection.x, grass.windDirection.y};
+    SetShaderValue(grassShader, grassLocs.windStrength, &grass.windStrength, SHADER_UNIFORM_FLOAT);
+    SetShaderValue(grassShader, grassLocs.windSpeed, &grass.windSpeed, SHADER_UNIFORM_FLOAT);
+    SetShaderValue(grassShader, grassLocs.windDirection, windDir, SHADER_UNIFORM_VEC2);
 }

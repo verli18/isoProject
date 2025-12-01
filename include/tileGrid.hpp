@@ -6,6 +6,7 @@
 #include <cstdint> // for uint64_t
 
 #include "resourceManager.hpp"
+#include "biome.hpp"
 
 
 // Tunable parameters for water and hydrology generation
@@ -24,7 +25,11 @@ struct WaterParams {
 class machine;
 
 struct tile{
-    char type; //type is basically the biome, too lazy to rewrite all the instances of type as biome
+    // Biome data
+    BiomeType biome;              // Primary biome
+    BiomeType secondaryBiome;     // Secondary biome for blending
+    
+    char type; // Texture ID (kept for compatibility, but should be derived from biome)
     float tileHeight[4]; //TODO: make this int with half-unit increments
     uint16_t lighting; //let's use RGB15 because why not lmao 
     
@@ -38,6 +43,15 @@ struct tile{
     uint8_t hydrologicalPotential = 0;
     uint8_t biologicalPotential = 0;
     uint8_t crystalinePotential = 0;
+    
+    // Biome blending data (for smooth transitions)
+    uint8_t secondaryType = 0;    // Secondary texture to blend towards
+    uint8_t blendStrength = 0;    // 0=100% primary, 255=100% secondary
+    
+    // Erosion data (computed from WorldMap erosion simulation)
+    // 0 = flat/depositional area (full grass/snow coverage)
+    // 255 = heavily eroded (exposed dirt/rock, minimal vegetation)
+    uint8_t erosionFactor = 0;
     
     // Water data
     // Interpreted as absolute Y level in half-units: waterY = 0.5f * waterLevel

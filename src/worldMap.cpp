@@ -227,6 +227,31 @@ void WorldMap::getRiverGrid(
     }
 }
 
+void WorldMap::getErosionGrid(
+    std::vector<uint8_t>& erosionOut,
+    int chunkWorldX, int chunkWorldZ,
+    int width, int height
+) {
+    int N = width * height;
+    erosionOut.resize(N);
+    
+    for (int z = 0; z < height; ++z) {
+        for (int x = 0; x < width; ++x) {
+            int worldX = chunkWorldX + x;
+            int worldZ = chunkWorldZ + z;
+            
+            RegionData& region = getRegion(worldX, worldZ);
+            ensureRegionReady(region);
+            
+            int localX = worldX - region.worldX;
+            int localZ = worldZ - region.worldZ;
+            int idx = localZ * region.width + localX;
+            
+            erosionOut[z * width + x] = region.erosionIntensity[idx];
+        }
+    }
+}
+
 void WorldMap::preloadAround(int worldX, int worldZ, int radiusInRegions) {
     for (int rz = -radiusInRegions; rz <= radiusInRegions; ++rz) {
         for (int rx = -radiusInRegions; rx <= radiusInRegions; ++rx) {
@@ -278,6 +303,10 @@ void WorldMap::applyErosion(RegionData& region) {
     
     int width = region.width + 1;
     int height = region.height + 1;
+    
+    // Initialize erosion intensity tracking for tiles (not vertices)
+    // We'll accumulate erosion amount per tile, then normalize to 0-255
+    std::vector<float> erosionAccum(region.width * region.height, 0.0f);
     
     // Precompute erosion brush
     std::vector<std::pair<int, int>> brushOffsets;
@@ -349,6 +378,7 @@ void WorldMap::applyErosion(RegionData& region) {
     const float spawnH = static_cast<float>(height - 2 * margin);
     
     if (spawnW <= 0 || spawnH <= 0) {
+        region.erosionIntensity.resize(region.width * region.height, 0);
         region.eroded = true;
         return;
     }
@@ -420,6 +450,14 @@ void WorldMap::applyErosion(RegionData& region) {
                         float amt = erode * brushWeights[i];
                         region.heights[ez * width + ex] -= amt;
                         sediment += amt;
+                        
+                        // Track erosion intensity per tile
+                        // Convert vertex coords to tile coords (vertices are at tile corners)
+                        int tileX = std::clamp(ex, 0, region.width - 1);
+                        int tileZ = std::clamp(ez, 0, region.height - 1);
+                        int tileIdx = tileZ * region.width + tileX;
+                        // Weight by droplet speed (faster = more visible erosion channels)
+                        erosionAccum[tileIdx] += amt * speed;
                     }
                 }
             }
@@ -431,6 +469,49 @@ void WorldMap::applyErosion(RegionData& region) {
             posZ = newZ;
             
             if (water < 0.01f) break;
+        }
+    }
+    
+    // Normalize erosion accumulator to 0-255 range
+    float maxErosion = 0.0f;
+    for (float e : erosionAccum) {
+        if (e > maxErosion) maxErosion = e;
+    }
+    
+    region.erosionIntensity.resize(region.width * region.height);
+    if (maxErosion > 0.001f) {
+        for (size_t i = 0; i < erosionAccum.size(); ++i) {
+            // Apply sqrt to make erosion more visible in lower ranges
+            float normalized = std::sqrt(erosionAccum[i] / maxErosion);
+            region.erosionIntensity[i] = static_cast<uint8_t>(std::clamp(normalized * 255.0f, 0.0f, 255.0f));
+        }
+    } else {
+        std::fill(region.erosionIntensity.begin(), region.erosionIntensity.end(), 0);
+    }
+    
+    // Also factor in slope - steep areas show more exposed rock even without erosion simulation
+    // This ensures cliffs always look rocky
+    for (int z = 0; z < region.height; ++z) {
+        for (int x = 0; x < region.width; ++x) {
+            int hIdx = z * (region.width + 1) + x;
+            float h00 = region.heights[hIdx];
+            float h10 = region.heights[hIdx + 1];
+            float h01 = region.heights[hIdx + region.width + 1];
+            float h11 = region.heights[hIdx + region.width + 2];
+            
+            float maxDiff = std::max({
+                std::abs(h00 - h10), std::abs(h00 - h01), std::abs(h00 - h11),
+                std::abs(h10 - h01), std::abs(h10 - h11), std::abs(h01 - h11)
+            });
+            
+            // Slope factor: 0 for flat, 1 for very steep (>1.5 units difference)
+            float slopeFactor = std::clamp(maxDiff / 1.5f, 0.0f, 1.0f);
+            
+            int tileIdx = z * region.width + x;
+            // Combine erosion simulation with slope
+            float combined = region.erosionIntensity[tileIdx] / 255.0f;
+            combined = std::max(combined, slopeFactor * 0.8f);  // Steep slopes = at least 80% exposed
+            region.erosionIntensity[tileIdx] = static_cast<uint8_t>(std::clamp(combined * 255.0f, 0.0f, 255.0f));
         }
     }
     

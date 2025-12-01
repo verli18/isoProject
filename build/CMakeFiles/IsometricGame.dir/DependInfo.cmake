@@ -26,6 +26,7 @@ set(CMAKE_DEPENDS_DEPENDENCY_FILES
   "/home/chrma/Documents/programming/isoProject/src/main.cpp" "CMakeFiles/IsometricGame.dir/src/main.cpp.o" "gcc" "CMakeFiles/IsometricGame.dir/src/main.cpp.o.d"
   "/home/chrma/Documents/programming/isoProject/src/resourceManager.cpp" "CMakeFiles/IsometricGame.dir/src/resourceManager.cpp.o" "gcc" "CMakeFiles/IsometricGame.dir/src/resourceManager.cpp.o.d"
   "/home/chrma/Documents/programming/isoProject/src/tileGrid.cpp" "CMakeFiles/IsometricGame.dir/src/tileGrid.cpp.o" "gcc" "CMakeFiles/IsometricGame.dir/src/tileGrid.cpp.o.d"
+  "/home/chrma/Documents/programming/isoProject/src/visualSettings.cpp" "CMakeFiles/IsometricGame.dir/src/visualSettings.cpp.o" "gcc" "CMakeFiles/IsometricGame.dir/src/visualSettings.cpp.o.d"
   "/home/chrma/Documents/programming/isoProject/src/worldGenerator.cpp" "CMakeFiles/IsometricGame.dir/src/worldGenerator.cpp.o" "gcc" "CMakeFiles/IsometricGame.dir/src/worldGenerator.cpp.o.d"
   "/home/chrma/Documents/programming/isoProject/src/worldMap.cpp" "CMakeFiles/IsometricGame.dir/src/worldMap.cpp.o" "gcc" "CMakeFiles/IsometricGame.dir/src/worldMap.cpp.o.d"
   "" "IsometricGame" "gcc" "CMakeFiles/IsometricGame.dir/link.d"

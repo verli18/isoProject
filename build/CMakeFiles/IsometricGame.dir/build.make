@@ -268,10 +268,24 @@ CMakeFiles/IsometricGame.dir/src/grass.cpp.s: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling CXX source to assembly CMakeFiles/IsometricGame.dir/src/grass.cpp.s"
 	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /home/chrma/Documents/programming/isoProject/src/grass.cpp -o CMakeFiles/IsometricGame.dir/src/grass.cpp.s
 
+CMakeFiles/IsometricGame.dir/src/visualSettings.cpp.o: CMakeFiles/IsometricGame.dir/flags.make
+CMakeFiles/IsometricGame.dir/src/visualSettings.cpp.o: /home/chrma/Documents/programming/isoProject/src/visualSettings.cpp
+CMakeFiles/IsometricGame.dir/src/visualSettings.cpp.o: CMakeFiles/IsometricGame.dir/compiler_depend.ts
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/chrma/Documents/programming/isoProject/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_15) "Building CXX object CMakeFiles/IsometricGame.dir/src/visualSettings.cpp.o"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/IsometricGame.dir/src/visualSettings.cpp.o -MF CMakeFiles/IsometricGame.dir/src/visualSettings.cpp.o.d -o CMakeFiles/IsometricGame.dir/src/visualSettings.cpp.o -c /home/chrma/Documents/programming/isoProject/src/visualSettings.cpp
+
+CMakeFiles/IsometricGame.dir/src/visualSettings.cpp.i: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Preprocessing CXX source to CMakeFiles/IsometricGame.dir/src/visualSettings.cpp.i"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E /home/chrma/Documents/programming/isoProject/src/visualSettings.cpp > CMakeFiles/IsometricGame.dir/src/visualSettings.cpp.i
+
+CMakeFiles/IsometricGame.dir/src/visualSettings.cpp.s: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling CXX source to assembly CMakeFiles/IsometricGame.dir/src/visualSettings.cpp.s"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /home/chrma/Documents/programming/isoProject/src/visualSettings.cpp -o CMakeFiles/IsometricGame.dir/src/visualSettings.cpp.s
+
 CMakeFiles/IsometricGame.dir/libs/rlImGui/rlImGui.cpp.o: CMakeFiles/IsometricGame.dir/flags.make
 CMakeFiles/IsometricGame.dir/libs/rlImGui/rlImGui.cpp.o: /home/chrma/Documents/programming/isoProject/libs/rlImGui/rlImGui.cpp
 CMakeFiles/IsometricGame.dir/libs/rlImGui/rlImGui.cpp.o: CMakeFiles/IsometricGame.dir/compiler_depend.ts
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/chrma/Documents/programming/isoProject/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_15) "Building CXX object CMakeFiles/IsometricGame.dir/libs/rlImGui/rlImGui.cpp.o"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/chrma/Documents/programming/isoProject/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_16) "Building CXX object CMakeFiles/IsometricGame.dir/libs/rlImGui/rlImGui.cpp.o"
 	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/IsometricGame.dir/libs/rlImGui/rlImGui.cpp.o -MF CMakeFiles/IsometricGame.dir/libs/rlImGui/rlImGui.cpp.o.d -o CMakeFiles/IsometricGame.dir/libs/rlImGui/rlImGui.cpp.o -c /home/chrma/Documents/programming/isoProject/libs/rlImGui/rlImGui.cpp
 
 CMakeFiles/IsometricGame.dir/libs/rlImGui/rlImGui.cpp.i: cmake_force
@@ -285,7 +299,7 @@ CMakeFiles/IsometricGame.dir/libs/rlImGui/rlImGui.cpp.s: cmake_force
 CMakeFiles/IsometricGame.dir/libs/rlImGui/imgui/imgui.cpp.o: CMakeFiles/IsometricGame.dir/flags.make
 CMakeFiles/IsometricGame.dir/libs/rlImGui/imgui/imgui.cpp.o: /home/chrma/Documents/programming/isoProject/libs/rlImGui/imgui/imgui.cpp
 CMakeFiles/IsometricGame.dir/libs/rlImGui/imgui/imgui.cpp.o: CMakeFiles/IsometricGame.dir/compiler_depend.ts
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/chrma/Documents/programming/isoProject/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_16) "Building CXX object CMakeFiles/IsometricGame.dir/libs/rlImGui/imgui/imgui.cpp.o"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/chrma/Documents/programming/isoProject/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_17) "Building CXX object CMakeFiles/IsometricGame.dir/libs/rlImGui/imgui/imgui.cpp.o"
 	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/IsometricGame.dir/libs/rlImGui/imgui/imgui.cpp.o -MF CMakeFiles/IsometricGame.dir/libs/rlImGui/imgui/imgui.cpp.o.d -o CMakeFiles/IsometricGame.dir/libs/rlImGui/imgui/imgui.cpp.o -c /home/chrma/Documents/programming/isoProject/libs/rlImGui/imgui/imgui.cpp
 
 CMakeFiles/IsometricGame.dir/libs/rlImGui/imgui/imgui.cpp.i: cmake_force
@@ -299,7 +313,7 @@ CMakeFiles/IsometricGame.dir/libs/rlImGui/imgui/imgui.cpp.s: cmake_force
 CMakeFiles/IsometricGame.dir/libs/rlImGui/imgui/imgui_widgets.cpp.o: CMakeFiles/IsometricGame.dir/flags.make
 CMakeFiles/IsometricGame.dir/libs/rlImGui/imgui/imgui_widgets.cpp.o: /home/chrma/Documents/programming/isoProject/libs/rlImGui/imgui/imgui_widgets.cpp
 CMakeFiles/IsometricGame.dir/libs/rlImGui/imgui/imgui_widgets.cpp.o: CMakeFiles/IsometricGame.dir/compiler_depend.ts
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/chrma/Documents/programming/isoProject/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_17) "Building CXX object CMakeFiles/IsometricGame.dir/libs/rlImGui/imgui/imgui_widgets.cpp.o"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/chrma/Documents/programming/isoProject/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_18) "Building CXX object CMakeFiles/IsometricGame.dir/libs/rlImGui/imgui/imgui_widgets.cpp.o"
 	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/IsometricGame.dir/libs/rlImGui/imgui/imgui_widgets.cpp.o -MF CMakeFiles/IsometricGame.dir/libs/rlImGui/imgui/imgui_widgets.cpp.o.d -o CMakeFiles/IsometricGame.dir/libs/rlImGui/imgui/imgui_widgets.cpp.o -c /home/chrma/Documents/programming/isoProject/libs/rlImGui/imgui/imgui_widgets.cpp
 
 CMakeFiles/IsometricGame.dir/libs/rlImGui/imgui/imgui_widgets.cpp.i: cmake_force
@@ -313,7 +327,7 @@ CMakeFiles/IsometricGame.dir/libs/rlImGui/imgui/imgui_widgets.cpp.s: cmake_force
 CMakeFiles/IsometricGame.dir/libs/rlImGui/imgui/imgui_draw.cpp.o: CMakeFiles/IsometricGame.dir/flags.make
 CMakeFiles/IsometricGame.dir/libs/rlImGui/imgui/imgui_draw.cpp.o: /home/chrma/Documents/programming/isoProject/libs/rlImGui/imgui/imgui_draw.cpp
 CMakeFiles/IsometricGame.dir/libs/rlImGui/imgui/imgui_draw.cpp.o: CMakeFiles/IsometricGame.dir/compiler_depend.ts
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/chrma/Documents/programming/isoProject/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_18) "Building CXX object CMakeFiles/IsometricGame.dir/libs/rlImGui/imgui/imgui_draw.cpp.o"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/chrma/Documents/programming/isoProject/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_19) "Building CXX object CMakeFiles/IsometricGame.dir/libs/rlImGui/imgui/imgui_draw.cpp.o"
 	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/IsometricGame.dir/libs/rlImGui/imgui/imgui_draw.cpp.o -MF CMakeFiles/IsometricGame.dir/libs/rlImGui/imgui/imgui_draw.cpp.o.d -o CMakeFiles/IsometricGame.dir/libs/rlImGui/imgui/imgui_draw.cpp.o -c /home/chrma/Documents/programming/isoProject/libs/rlImGui/imgui/imgui_draw.cpp
 
 CMakeFiles/IsometricGame.dir/libs/rlImGui/imgui/imgui_draw.cpp.i: cmake_force
@@ -327,7 +341,7 @@ CMakeFiles/IsometricGame.dir/libs/rlImGui/imgui/imgui_draw.cpp.s: cmake_force
 CMakeFiles/IsometricGame.dir/libs/rlImGui/imgui/imgui_tables.cpp.o: CMakeFiles/IsometricGame.dir/flags.make
 CMakeFiles/IsometricGame.dir/libs/rlImGui/imgui/imgui_tables.cpp.o: /home/chrma/Documents/programming/isoProject/libs/rlImGui/imgui/imgui_tables.cpp
 CMakeFiles/IsometricGame.dir/libs/rlImGui/imgui/imgui_tables.cpp.o: CMakeFiles/IsometricGame.dir/compiler_depend.ts
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/chrma/Documents/programming/isoProject/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_19) "Building CXX object CMakeFiles/IsometricGame.dir/libs/rlImGui/imgui/imgui_tables.cpp.o"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/chrma/Documents/programming/isoProject/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_20) "Building CXX object CMakeFiles/IsometricGame.dir/libs/rlImGui/imgui/imgui_tables.cpp.o"
 	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/IsometricGame.dir/libs/rlImGui/imgui/imgui_tables.cpp.o -MF CMakeFiles/IsometricGame.dir/libs/rlImGui/imgui/imgui_tables.cpp.o.d -o CMakeFiles/IsometricGame.dir/libs/rlImGui/imgui/imgui_tables.cpp.o -c /home/chrma/Documents/programming/isoProject/libs/rlImGui/imgui/imgui_tables.cpp
 
 CMakeFiles/IsometricGame.dir/libs/rlImGui/imgui/imgui_tables.cpp.i: cmake_force
@@ -341,7 +355,7 @@ CMakeFiles/IsometricGame.dir/libs/rlImGui/imgui/imgui_tables.cpp.s: cmake_force
 CMakeFiles/IsometricGame.dir/libs/rlImGui/imgui/imgui_demo.cpp.o: CMakeFiles/IsometricGame.dir/flags.make
 CMakeFiles/IsometricGame.dir/libs/rlImGui/imgui/imgui_demo.cpp.o: /home/chrma/Documents/programming/isoProject/libs/rlImGui/imgui/imgui_demo.cpp
 CMakeFiles/IsometricGame.dir/libs/rlImGui/imgui/imgui_demo.cpp.o: CMakeFiles/IsometricGame.dir/compiler_depend.ts
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/chrma/Documents/programming/isoProject/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_20) "Building CXX object CMakeFiles/IsometricGame.dir/libs/rlImGui/imgui/imgui_demo.cpp.o"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/chrma/Documents/programming/isoProject/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_21) "Building CXX object CMakeFiles/IsometricGame.dir/libs/rlImGui/imgui/imgui_demo.cpp.o"
 	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/IsometricGame.dir/libs/rlImGui/imgui/imgui_demo.cpp.o -MF CMakeFiles/IsometricGame.dir/libs/rlImGui/imgui/imgui_demo.cpp.o.d -o CMakeFiles/IsometricGame.dir/libs/rlImGui/imgui/imgui_demo.cpp.o -c /home/chrma/Documents/programming/isoProject/libs/rlImGui/imgui/imgui_demo.cpp
 
 CMakeFiles/IsometricGame.dir/libs/rlImGui/imgui/imgui_demo.cpp.i: cmake_force
@@ -368,6 +382,7 @@ IsometricGame_OBJECTS = \
 "CMakeFiles/IsometricGame.dir/src/worldMap.cpp.o" \
 "CMakeFiles/IsometricGame.dir/src/biome.cpp.o" \
 "CMakeFiles/IsometricGame.dir/src/grass.cpp.o" \
+"CMakeFiles/IsometricGame.dir/src/visualSettings.cpp.o" \
 "CMakeFiles/IsometricGame.dir/libs/rlImGui/rlImGui.cpp.o" \
 "CMakeFiles/IsometricGame.dir/libs/rlImGui/imgui/imgui.cpp.o" \
 "CMakeFiles/IsometricGame.dir/libs/rlImGui/imgui/imgui_widgets.cpp.o" \
@@ -392,6 +407,7 @@ IsometricGame: CMakeFiles/IsometricGame.dir/src/worldGenerator.cpp.o
 IsometricGame: CMakeFiles/IsometricGame.dir/src/worldMap.cpp.o
 IsometricGame: CMakeFiles/IsometricGame.dir/src/biome.cpp.o
 IsometricGame: CMakeFiles/IsometricGame.dir/src/grass.cpp.o
+IsometricGame: CMakeFiles/IsometricGame.dir/src/visualSettings.cpp.o
 IsometricGame: CMakeFiles/IsometricGame.dir/libs/rlImGui/rlImGui.cpp.o
 IsometricGame: CMakeFiles/IsometricGame.dir/libs/rlImGui/imgui/imgui.cpp.o
 IsometricGame: CMakeFiles/IsometricGame.dir/libs/rlImGui/imgui/imgui_widgets.cpp.o
@@ -402,7 +418,7 @@ IsometricGame: CMakeFiles/IsometricGame.dir/build.make
 IsometricGame: CMakeFiles/IsometricGame.dir/compiler_depend.ts
 IsometricGame: libs/FastNoise2/src/libFastNoise.a
 IsometricGame: CMakeFiles/IsometricGame.dir/link.txt
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --bold --progress-dir=/home/chrma/Documents/programming/isoProject/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_21) "Linking CXX executable IsometricGame"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --bold --progress-dir=/home/chrma/Documents/programming/isoProject/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_22) "Linking CXX executable IsometricGame"
 	$(CMAKE_COMMAND) -E cmake_link_script CMakeFiles/IsometricGame.dir/link.txt --verbose=$(VERBOSE)
 
 # Rule to build all files generated by this target.
